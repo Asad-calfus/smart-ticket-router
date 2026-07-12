@@ -28,6 +28,10 @@ class Ticket(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     channel: Mapped[TicketChannel] = mapped_column(TicketChannelType, nullable=False, default=TicketChannel.EMAIL)
 
+    # Current assignment (fast lookup for "tickets assigned to me"). Full history
+    # of every assignment/reassignment lives in TicketAssignment.
+    assigned_agent_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
     # Populated once the ticket has been routed (by the AI or a human). Null until then.
     category: Mapped[TicketCategory | None] = mapped_column(TicketCategoryType, nullable=True)
     priority: Mapped[TicketPriority | None] = mapped_column(TicketPriorityType, nullable=True)
@@ -52,3 +56,4 @@ class Ticket(Base):
 
     customer: Mapped["Customer"] = relationship(back_populates="tickets")
     feedback_entries: Mapped[list["RoutingFeedback"]] = relationship(back_populates="ticket")
+    messages: Mapped[list["TicketMessage"]] = relationship(back_populates="ticket", order_by="TicketMessage.created_at")

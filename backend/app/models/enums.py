@@ -43,6 +43,7 @@ class TicketStatus(str, enum.Enum):
     IN_PROGRESS = "In Progress"
     NEEDS_HUMAN_REVIEW = "Needs Human Review"
     RESOLVED = "Resolved"
+    REOPENED = "Reopened"
 
 
 class TicketChannel(str, enum.Enum):
@@ -91,6 +92,29 @@ class IncidentStatus(str, enum.Enum):
     RESOLVED = "Resolved"
 
 
+class UserRole(str, enum.Enum):
+    CUSTOMER = "Customer"
+    SUPPORT_AGENT = "Support Agent"
+    ADMIN = "Admin"
+
+
+class MessageType(str, enum.Enum):
+    CUSTOMER_REPLY = "Customer Reply"
+    AGENT_REPLY = "Agent Reply"
+    INTERNAL_NOTE = "Internal Note"
+
+
+class AgentAvailability(str, enum.Enum):
+    AVAILABLE = "Available"
+    BUSY = "Busy"
+    OFFLINE = "Offline"
+
+
+class TokenPurpose(str, enum.Enum):
+    PASSWORD_RESET = "Password Reset"
+    EMAIL_VERIFICATION = "Email Verification"
+
+
 def _pg_enum(enum_cls: type[enum.Enum], name: str) -> SAEnum:
     """Build a Postgres ENUM column type whose stored values are the human-readable
     strings (e.g. "Technical Issue"), not the Python member names."""
@@ -108,3 +132,7 @@ SubscriptionStatusType = _pg_enum(SubscriptionStatus, "subscription_status")
 AccessStatusType = _pg_enum(AccessStatus, "access_status")
 IncidentSeverityType = _pg_enum(IncidentSeverity, "incident_severity")
 IncidentStatusType = _pg_enum(IncidentStatus, "incident_status")
+UserRoleType = _pg_enum(UserRole, "user_role")
+MessageTypeType = _pg_enum(MessageType, "message_type")
+AgentAvailabilityType = _pg_enum(AgentAvailability, "agent_availability")
+TokenPurposeType = _pg_enum(TokenPurpose, "token_purpose")
