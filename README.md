@@ -215,11 +215,13 @@ below).
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` / `POSTGRES_PORT` | Docker Compose Postgres credentials | `ticket_user` / `ticket_pass` / `ticket_router` / `5432` |
 | `DATABASE_URL` | SQLAlchemy connection string | matches the above, `localhost` |
 | `MAX_TICKET_MESSAGE_LENGTH` | Max characters accepted for a ticket message | `4000` |
-| `LLM_PROVIDER` | `mock` (rule-based, free, offline) or `anthropic` (real Claude calls) | `mock` |
+| `LLM_PROVIDER` | `mock` (rule-based, free, offline), `anthropic` (real Claude calls), or `openai` (real GPT calls) | `mock` |
 | `ANTHROPIC_API_KEY` | Required only if `LLM_PROVIDER=anthropic` | empty |
-| `LLM_MODEL` | Claude model name | `claude-sonnet-5` |
+| `LLM_MODEL` | Claude model name (used when `LLM_PROVIDER=anthropic`) | `claude-sonnet-5` |
+| `OPENAI_LLM_MODEL` | OpenAI model name (used when `LLM_PROVIDER=openai`) | `gpt-5-mini` |
 | `EMBEDDING_PROVIDER` | `mock` (hashed bag-of-words, free, offline) or `openai` (real embeddings) | `mock` |
-| `OPENAI_API_KEY` | Required only if `EMBEDDING_PROVIDER=openai` | empty |
+| `OPENAI_API_KEY` | Required if `LLM_PROVIDER=openai` and/or `EMBEDDING_PROVIDER=openai` — one key, shared by both | empty |
+| `EMBEDDING_MODEL` | OpenAI embedding model name (used when `EMBEDDING_PROVIDER=openai`) | `text-embedding-3-small` |
 | `EMBEDDING_DIM` | Vector column dimension (must stay fixed once you've migrated) | `384` |
 | `COOKIE_SECURE` | `true` in production (HTTPS only); `false` for local `http://localhost` | `false` |
 | `SESSION_LIFETIME_HOURS` | Sliding session expiry | `12` |
@@ -341,7 +343,7 @@ python -m app.db.seed && python -m app.db.backfill_embeddings && python -m app.d
 python -m pytest tests/ -v
 ```
 
-**81 tests** across:
+**94 tests** across:
 - `test_routing.py` / `test_retrieval.py` / `test_demo_tickets.py` / `test_db_models.py` — the original
   AI-routing suite (schema validation across repeated routing calls, angry-tone non-escalation, "broken" →
   Needs Clarification, high-severity priority rules, input validation, LLM-failure fallback, consistency,
@@ -353,6 +355,10 @@ python -m pytest tests/ -v
   admin agent management, **internal notes and AI evidence never reaching customer responses**, ticket
   assignment, reopen/status-transition conflicts.
 - `test_customer_portal.py` — profile mass-assignment protection, ticket creation/ownership.
+- `test_config.py` — LLM/embedding provider settings load correctly (mock/anthropic/openai) from the environment.
+- `test_llm_providers.py` — `LLM_PROVIDER=openai` selects OpenAI and flows through the full pipeline; malformed
+  or schema-invalid OpenAI output triggers the same retry-then-fallback as any other provider; backend safety
+  rules (e.g. security → High) still override a real provider's output; mock mode still works unaffected.
 
 Tests run against the same seeded dev database (not a separate test DB or
 mocks) — this keeps setup simple while still exercising real pgvector/enum/FK
@@ -569,6 +575,28 @@ The Analytics page (`/` → "Analytics" tab) shows:
 - **Estimated time saved** — the difference between the two, only shown once
   at least one ticket has been routed this session.
 
+## LLM providers
+
+`routing_service._get_raw_result_dict` dispatches on `LLM_PROVIDER`, in this order:
+
+1. `anthropic` — if `ANTHROPIC_API_KEY` is set, calls the Anthropic Messages API (`app/services/routing_service.py::_call_anthropic_llm`), model from `LLM_MODEL`, `temperature=0`.
+2. `openai` — if `OPENAI_API_KEY` is set, calls the OpenAI Chat Completions API (`_call_openai_llm`), model from `OPENAI_LLM_MODEL`, with `response_format={"type": "json_object"}` so the API guarantees syntactically valid JSON back. (Temperature is deliberately left at its default — some newer models reject overrides — low-variation output is reinforced by the prompt's strict-output instructions instead.)
+3. Otherwise — the mock rule-based classifier (see below).
+
+Whichever provider produced the raw output, it goes through the **same**
+pipeline: Pydantic validation against `RoutingResult`, one controlled retry
+on malformed output, the safe fallback if it still fails, and the backend
+safeguards in `apply_backend_safeguards` — a real LLM's output can be
+overridden by a backend rule (e.g. security → High priority) exactly like
+the mock's can. Provider and model name are recorded on every persisted
+`RoutingEvidence` row for traceability. See `tests/test_llm_providers.py`.
+
+**Neither API key is ever logged or returned** — only `app/core/dev_email.py`
+"sends" (logs) anything, and that's unrelated to LLM calls entirely; a
+provider error is caught by the same broad exception handling as malformed
+JSON and turned into the safe fallback, never a raw exception message
+containing request details.
+
 ## Mock mode limitations
 
 **Mock LLM** (`LLM_PROVIDER=mock`, the default): a deterministic keyword
@@ -576,8 +604,8 @@ classifier, not a language model. It matches English phrases like "refund",
 "charged", "log in", "complete outage" — it does not understand meaning,
 sarcasm, or non-English text. This is intentional: it lets the whole app run
 free and offline, and makes routing behaviour trivially reproducible in
-tests. Set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` for real
-classification.
+tests. Set `LLM_PROVIDER=anthropic` (+ `ANTHROPIC_API_KEY`) or
+`LLM_PROVIDER=openai` (+ `OPENAI_API_KEY`) for real classification.
 
 **Mock embeddings** (`EMBEDDING_PROVIDER=mock`, the default): a hashed
 bag-of-words vector (tokens hashed into fixed positions, counted, then
@@ -630,6 +658,6 @@ fixed regardless of provider).
 - [ ] Type "broken" into a new ticket → get "Needs Clarification" with 3 questions
 - [ ] Type an angry-but-low-severity message → priority stays Medium/Low, not High
 - [ ] Visit the Analytics tab (as agent/admin) → measured vs estimated routing time both visible
-- [ ] `python -m pytest tests/ -v` in `backend/` → 81 tests pass
+- [ ] `python -m pytest tests/ -v` in `backend/` → 94 tests pass
 - [ ] `npm run test` in `frontend/` → 30 tests pass
 - [ ] `npm run test:e2e` in `frontend/` → both Playwright flows pass

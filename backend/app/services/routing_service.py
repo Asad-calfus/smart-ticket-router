@@ -308,7 +308,7 @@ def _call_mock_llm(message: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Real LLM (LLM_PROVIDER=anthropic)
+# Real LLMs (LLM_PROVIDER=anthropic | openai)
 # ---------------------------------------------------------------------------
 
 
@@ -325,6 +325,24 @@ def _call_anthropic_llm(prompt: str) -> str:
     return response.content[0].text
 
 
+def _call_openai_llm(prompt: str) -> str:
+    from openai import OpenAI  # imported lazily so mock mode never needs the package configured
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    # response_format=json_object guarantees syntactically valid JSON back from
+    # the API; our own Pydantic validation (below) still checks it actually
+    # matches RoutingResult's shape, and the retry/fallback path handles it if
+    # not. Temperature is deliberately omitted: some newer models only accept
+    # the default temperature and reject overrides, and low-variation output
+    # is already reinforced by the prompt's strict-output instructions.
+    response = client.chat.completions.create(
+        model=settings.openai_llm_model,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content
+
+
 def _parse_json_object(raw_text: str) -> dict:
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
@@ -337,7 +355,20 @@ def _get_raw_result_dict(message: str, prompt: str) -> dict:
     if settings.llm_provider == "anthropic" and settings.anthropic_api_key:
         raw_text = _call_anthropic_llm(prompt)
         return _parse_json_object(raw_text)
+    if settings.llm_provider == "openai" and settings.openai_api_key:
+        raw_text = _call_openai_llm(prompt)
+        return _parse_json_object(raw_text)
     return _call_mock_llm(message)
+
+
+def _current_llm_model_name() -> str | None:
+    """The model name actually in effect for RoutingEvidence provenance — None
+    for the mock provider, which isn't a model at all."""
+    if settings.llm_provider == "anthropic":
+        return settings.llm_model
+    if settings.llm_provider == "openai":
+        return settings.openai_llm_model
+    return None
 
 
 class _LLMOutput(BaseModel):
@@ -547,7 +578,7 @@ def route_ticket_request(db: Session, payload: TicketRouteRequest) -> TicketRout
         RoutingEvidence(
             ticket_id=ticket.id,
             provider=settings.llm_provider,
-            model_name=settings.llm_model if settings.llm_provider == "anthropic" else None,
+            model_name=_current_llm_model_name(),
             rules_version=ROUTING_RULES_VERSION,
             customer_profile_used=context_used.customer_profile_used,
             product_ids=context_used.product_ids,

@@ -16,10 +16,10 @@ alembic==1.17.0
 psycopg[binary]==3.2.10
 pgvector==0.4.1
 
-# LLM provider (routing service) — real calls only when ANTHROPIC_API_KEY is set
+# LLM providers (routing service) — real calls only when the matching API key is set.
+# anthropic: used when LLM_PROVIDER=anthropic. openai: used when LLM_PROVIDER=openai
+# and/or EMBEDDING_PROVIDER=openai (same package serves both).
 anthropic==0.75.0
-
-# Embedding provider (optional real embeddings) — only used when EMBEDDING_PROVIDER=openai
 openai==2.9.0
 
 # Utilities

@@ -20,10 +20,15 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://ticket_user:ticket_pass@localhost:5432/ticket_router"
 
+    # llm_provider: "mock" (default, no key needed) | "anthropic" | "openai"
     llm_provider: str = "mock"
     anthropic_api_key: str = ""
     llm_model: str = "claude-sonnet-5"
+    openai_llm_model: str = "gpt-5-mini"
 
+    # embedding_provider: "mock" (default, no key needed) | "openai"
+    # openai_api_key is shared between LLM routing (LLM_PROVIDER=openai) and
+    # embeddings (EMBEDDING_PROVIDER=openai) — both call the same OpenAI account.
     embedding_provider: str = "mock"
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"

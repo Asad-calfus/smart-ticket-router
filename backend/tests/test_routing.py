@@ -4,6 +4,11 @@
 POST /api/tickets/route is agent/admin-only (customers use /api/my/tickets
 instead — see test_customer_portal.py), so every test uses the `agent_client`
 fixture from conftest.py.
+
+routing_service also supports LLM_PROVIDER=anthropic and LLM_PROVIDER=openai
+(real API calls) — provider selection, malformed-output retry/fallback, and
+backend-safeguard behaviour under the OpenAI provider specifically are
+covered in test_llm_providers.py so they don't need real network calls here.
 """
 
 import pytest
