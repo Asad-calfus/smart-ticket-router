@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 384
 
+    # --- Authentication -----------------------------------------------------
+    # Set to true only when serving over HTTPS (production). False for local
+    # http://localhost dev, where a Secure cookie would simply never be sent.
+    cookie_secure: bool = False
+    session_lifetime_hours: int = 12
+    password_reset_token_lifetime_minutes: int = 30
+    email_verification_token_lifetime_hours: int = 24
+    agent_invitation_lifetime_days: int = 7
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

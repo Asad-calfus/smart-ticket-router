@@ -2,6 +2,10 @@
 fastapi==0.121.2
 uvicorn[standard]==0.38.0
 
+# Authentication
+argon2-cffi==25.1.0
+email-validator==2.3.0
+
 # Data & validation
 pydantic==2.12.4
 pydantic-settings==2.12.0
