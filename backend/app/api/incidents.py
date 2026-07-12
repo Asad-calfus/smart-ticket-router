@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_agent
 from app.db.session import get_db
 from app.models import Incident, Product
 from app.models.enums import IncidentStatus
 from app.schemas.incident import IncidentRead
 
-router = APIRouter(prefix="/api/incidents", tags=["incidents"])
+router = APIRouter(prefix="/api/incidents", tags=["incidents"], dependencies=[Depends(require_agent)])
 
 
 @router.get("/active", response_model=list[IncidentRead])

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_agent
 from app.db.session import get_db
 from app.models import Customer
 from app.schemas.customer import CustomerDetailRead, CustomerProductRead, CustomerRead
@@ -9,7 +10,8 @@ from app.schemas.incident import IncidentRead
 from app.schemas.ticket import TicketRead
 from app.services import context_service, ticket_service
 
-router = APIRouter(prefix="/api/customers", tags=["customers"])
+# Agent/admin only — this is the internal Customer 360 view, not the customer's own profile.
+router = APIRouter(prefix="/api/customers", tags=["customers"], dependencies=[Depends(require_agent)])
 
 
 @router.get("", response_model=list[CustomerRead])

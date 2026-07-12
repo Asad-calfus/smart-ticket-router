@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, customers, incidents, metrics, tickets
+from app.api import admin, auth, customer_portal, customers, incidents, metrics, tickets
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 
@@ -26,6 +26,8 @@ app.add_middleware(
 register_exception_handlers(app)
 
 app.include_router(auth.router)
+app.include_router(customer_portal.router)
+app.include_router(admin.router)
 app.include_router(customers.router)
 app.include_router(tickets.router)
 app.include_router(incidents.router)
