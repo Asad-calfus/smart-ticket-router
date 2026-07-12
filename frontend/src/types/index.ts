@@ -23,7 +23,7 @@ export type AssignedTeam =
   | "Security Operations"
   | "General Support"
 
-export type TicketStatus = "Open" | "Routed" | "In Progress" | "Needs Human Review" | "Resolved"
+export type TicketStatus = "Open" | "Routed" | "In Progress" | "Needs Human Review" | "Resolved" | "Reopened"
 
 export type TicketChannel = "Email" | "Chat" | "Phone" | "Portal"
 
@@ -198,3 +198,152 @@ export const ASSIGNED_TEAMS: AssignedTeam[] = [
   "Security Operations",
   "General Support",
 ]
+
+// --- Auth / roles -----------------------------------------------------------
+
+export type UserRole = "Customer" | "Support Agent" | "Admin"
+
+export type MessageType = "Customer Reply" | "Agent Reply" | "Internal Note"
+
+export interface CurrentUser {
+  id: number
+  email: string
+  role: UserRole
+  is_active: boolean
+  is_email_verified: boolean
+  customer_id: number | null
+  agent_display_name: string | null
+  agent_team: AssignedTeam | null
+}
+
+export interface SignupRequest {
+  email: string
+  password: string
+  name: string
+  location?: string
+  preferred_language?: string
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface GenericMessage {
+  message: string
+}
+
+export interface AcceptInvitationRequest {
+  token: string
+  password: string
+  display_name: string
+}
+
+// --- Customer portal ----------------------------------------------------------
+
+export interface MyProfile {
+  email: string
+  is_email_verified: boolean
+  name: string
+  tier: CustomerTier
+  location: string
+  preferred_language: string
+  company: string | null
+  phone: string | null
+  contact_preferences: string | null
+}
+
+export interface MyProfileUpdate {
+  name?: string
+  location?: string
+  preferred_language?: string
+  company?: string
+  phone?: string
+  contact_preferences?: string
+}
+
+export interface MyTicket {
+  id: number
+  message: string
+  channel: TicketChannel
+  category: TicketCategory | null
+  priority: TicketPriority | null
+  assigned_team: AssignedTeam | null
+  status: TicketStatus
+  resolution: string | null
+  created_at: string
+  resolved_at: string | null
+}
+
+export interface MyTicketCreate {
+  message: string
+  channel?: TicketChannel
+}
+
+// --- Conversation / messages --------------------------------------------------
+
+export interface TicketMessage {
+  id: number
+  ticket_id: number
+  author_user_id: number | null
+  author_label: string
+  message_type: MessageType
+  body: string
+  created_at: string
+}
+
+export interface AgentRosterItem {
+  id: number
+  display_name: string
+  team: AssignedTeam | null
+}
+
+export interface TicketAssignmentRead {
+  id: number
+  ticket_id: number
+  assigned_agent_id: number | null
+  assigned_agent_name: string | null
+  assigned_team: AssignedTeam | null
+  assigned_by: number | null
+  assigned_at: string
+}
+
+// --- Persisted routing evidence -------------------------------------------------
+
+export interface RoutingEvidenceRead extends RoutingResult {
+  provider: string
+  model_name: string | null
+  rules_version: string
+  created_at: string
+}
+
+// --- Admin ----------------------------------------------------------------------
+
+export interface AgentUser {
+  id: number
+  email: string
+  role: UserRole
+  is_active: boolean
+  is_email_verified: boolean
+  display_name: string | null
+  team: AssignedTeam | null
+  last_login_at: string | null
+  created_at: string
+}
+
+export interface AgentInviteRequest {
+  email: string
+  role: "Support Agent" | "Admin"
+  team?: AssignedTeam | null
+}
+
+export interface AuditEventRead {
+  id: number
+  actor_user_id: number | null
+  actor_email: string | null
+  action: string
+  target_type: string | null
+  target_id: number | null
+  event_metadata: Record<string, unknown> | null
+  created_at: string
+}
