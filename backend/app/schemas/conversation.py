@@ -41,3 +41,13 @@ class TicketAssignmentRead(BaseModel):
     assigned_team: AssignedTeam | None
     assigned_by: int | None
     assigned_at: datetime
+
+
+class AgentRosterItem(BaseModel):
+    """Minimal, non-sensitive agent info — just enough to populate an
+    assignment dropdown. Deliberately excludes email/last_login/etc, which
+    are only exposed via the admin-only /api/admin/agents endpoint."""
+
+    id: int
+    display_name: str
+    team: AssignedTeam | None

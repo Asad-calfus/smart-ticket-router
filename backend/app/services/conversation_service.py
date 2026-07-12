@@ -3,10 +3,27 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
 from app.models import AgentProfile, TicketAssignment, TicketMessage, User
-from app.models.enums import MessageType
-from app.schemas.conversation import TicketAssignmentRead, TicketMessageRead
+from app.models.enums import MessageType, UserRole
+from app.schemas.conversation import AgentRosterItem, TicketAssignmentRead, TicketMessageRead
 from app.services import audit_service
 from app.services.ticket_service import get_ticket_or_404
+
+
+def list_agent_roster(db: Session) -> list[AgentRosterItem]:
+    """Active agents/admins, for populating an assignment dropdown."""
+    stmt = (
+        select(User)
+        .where(User.role.in_((UserRole.SUPPORT_AGENT, UserRole.ADMIN)), User.is_active.is_(True))
+        .order_by(User.id)
+    )
+    users = db.execute(stmt).scalars().all()
+    roster = []
+    for user in users:
+        profile = db.execute(select(AgentProfile).where(AgentProfile.user_id == user.id)).scalar_one_or_none()
+        roster.append(
+            AgentRosterItem(id=user.id, display_name=profile.display_name if profile else user.email, team=profile.team if profile else None)
+        )
+    return roster
 
 
 def _author_label(db: Session, author_user_id: int | None) -> str:

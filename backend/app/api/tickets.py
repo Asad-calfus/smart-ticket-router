@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.models import User
 from app.models.enums import MessageType
 from app.schemas.conversation import (
+    AgentRosterItem,
     TicketAssignmentRead,
     TicketAssignmentRequest,
     TicketMessageCreate,
@@ -69,6 +70,13 @@ def add_ticket_message(
 ) -> TicketMessageRead:
     message_type = MessageType.AGENT_REPLY if payload.message_type == "Agent Reply" else MessageType.INTERNAL_NOTE
     return conversation_service.add_agent_message(db, ticket_id, agent, payload.body, message_type)
+
+
+@router.get("/agents/roster", response_model=list[AgentRosterItem])
+def list_agent_roster(db: Session = Depends(get_db)) -> list[AgentRosterItem]:
+    """Active agents/admins an agent can assign a ticket to — deliberately
+    lighter-weight than the admin-only /api/admin/agents list."""
+    return conversation_service.list_agent_roster(db)
 
 
 @router.post("/{ticket_id}/assign", response_model=TicketAssignmentRead)
