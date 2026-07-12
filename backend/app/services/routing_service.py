@@ -19,10 +19,11 @@ import time
 from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import Ticket
+from app.models import RoutingEvidence, Ticket
 from app.models.enums import (
     AccessStatus,
     AssignedTeam,
@@ -32,6 +33,7 @@ from app.models.enums import (
     TicketPriority,
     TicketStatus,
 )
+from app.models.routing_evidence import ROUTING_RULES_VERSION
 from app.schemas.ticket import ContextUsed, RoutingResult, TicketRouteRequest, TicketRouteResponse
 from app.services import context_service, retrieval_service
 from app.services.context_service import CustomerContext, get_customer_or_404
@@ -540,7 +542,45 @@ def route_ticket_request(db: Session, payload: TicketRouteRequest) -> TicketRout
     ticket.routing_time_ms = outcome.elapsed_ms
     ticket.embedding = outcome.embedding
 
+    context_used = result.context_used
+    db.add(
+        RoutingEvidence(
+            ticket_id=ticket.id,
+            provider=settings.llm_provider,
+            model_name=settings.llm_model if settings.llm_provider == "anthropic" else None,
+            rules_version=ROUTING_RULES_VERSION,
+            customer_profile_used=context_used.customer_profile_used,
+            product_ids=context_used.product_ids,
+            active_incident_ids=context_used.active_incident_ids,
+            similar_ticket_ids=context_used.similar_ticket_ids,
+            knowledge_document_ids=context_used.knowledge_document_ids,
+            category=result.category,
+            priority=result.priority,
+            assigned_team=result.assigned_team,
+            reasoning=result.reasoning,
+            confidence=result.confidence,
+            needs_human_review=result.needs_human_review,
+            clarification_questions=result.clarification_questions,
+            routing_time_ms=outcome.elapsed_ms,
+        )
+    )
+
     db.commit()
     db.refresh(ticket)
 
     return TicketRouteResponse(ticket_id=ticket.id, **result.model_dump())
+
+
+def get_latest_evidence(db: Session, ticket_id: int):
+    """Most recent persisted RoutingEvidence for a ticket, or None if it's
+    never been routed. Powers GET /api/tickets/{id}/evidence — agents/admins
+    can see a ticket's AI evidence even after the browser session that
+    triggered the routing call is gone."""
+    get_ticket_or_404(db, ticket_id)
+    stmt = (
+        select(RoutingEvidence)
+        .where(RoutingEvidence.ticket_id == ticket_id)
+        .order_by(RoutingEvidence.created_at.desc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalar_one_or_none()

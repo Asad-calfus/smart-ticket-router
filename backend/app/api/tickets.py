@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_agent
+from app.core.exceptions import NotFoundError
 from app.db.session import get_db
 from app.models import User
 from app.models.enums import MessageType
@@ -12,6 +13,7 @@ from app.schemas.conversation import (
     TicketMessageRead,
 )
 from app.schemas.feedback import TicketFeedbackCreate, TicketFeedbackRead
+from app.schemas.routing_evidence import RoutingEvidenceRead
 from app.schemas.ticket import (
     TicketListItem,
     TicketRead,
@@ -77,3 +79,32 @@ def assign_ticket(
     db: Session = Depends(get_db),
 ) -> TicketAssignmentRead:
     return conversation_service.assign_ticket(db, ticket_id, payload.agent_user_id, agent)
+
+
+@router.get("/{ticket_id}/evidence", response_model=RoutingEvidenceRead)
+def get_ticket_evidence(ticket_id: int, db: Session = Depends(get_db)) -> RoutingEvidenceRead:
+    """The persisted routing decision + evidence — survives a reload,
+    unlike the frontend's in-memory cache of the live routing response."""
+    evidence = routing_service.get_latest_evidence(db, ticket_id)
+    if evidence is None:
+        raise NotFoundError(f"Ticket {ticket_id} has not been routed yet.")
+    return RoutingEvidenceRead(
+        category=evidence.category,
+        priority=evidence.priority,
+        assigned_team=evidence.assigned_team,
+        reasoning=evidence.reasoning,
+        confidence=evidence.confidence,
+        needs_human_review=evidence.needs_human_review,
+        clarification_questions=evidence.clarification_questions,
+        context_used={
+            "customer_profile_used": evidence.customer_profile_used,
+            "product_ids": evidence.product_ids,
+            "active_incident_ids": evidence.active_incident_ids,
+            "similar_ticket_ids": evidence.similar_ticket_ids,
+            "knowledge_document_ids": evidence.knowledge_document_ids,
+        },
+        provider=evidence.provider,
+        model_name=evidence.model_name,
+        rules_version=evidence.rules_version,
+        created_at=evidence.created_at,
+    )
