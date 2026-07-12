@@ -5,7 +5,6 @@ import { ConfidenceBadge, PriorityBadge } from "./Badge"
 
 interface AIRecommendationCardProps {
   result: RoutingResult
-  isLiveEvidence: boolean
   onAccept: () => void
   onEdit: (edits: { category: TicketCategory; priority: TicketPriority; assignedTeam: AssignedTeam }) => void
   onSendForHumanReview: () => void
@@ -14,7 +13,6 @@ interface AIRecommendationCardProps {
 
 export function AIRecommendationCard({
   result,
-  isLiveEvidence,
   onAccept,
   onEdit,
   onSendForHumanReview,
@@ -71,9 +69,6 @@ export function AIRecommendationCard({
             <p className="font-semibold text-slate-600">
               Evidence used {evidenceCount > 0 ? `(${evidenceCount} items)` : "(none)"}:
             </p>
-            {!isLiveEvidence && (
-              <p className="mt-1 text-amber-700">Routed in an earlier session — evidence ids weren't kept.</p>
-            )}
             <ul className="mt-1 space-y-0.5">
               <li>Customer profile: {result.context_used.customer_profile_used ? "used" : "not used"}</li>
               <li>Products referenced: {result.context_used.product_ids.join(", ") || "none"}</li>

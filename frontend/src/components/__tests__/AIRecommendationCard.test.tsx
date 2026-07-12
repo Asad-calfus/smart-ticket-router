@@ -9,7 +9,6 @@ describe("AIRecommendationCard", () => {
     render(
       <AIRecommendationCard
         result={sampleRoutingResult}
-        isLiveEvidence
         onAccept={vi.fn()}
         onEdit={vi.fn()}
         onSendForHumanReview={vi.fn()}
@@ -30,7 +29,6 @@ describe("AIRecommendationCard", () => {
     render(
       <AIRecommendationCard
         result={sampleRoutingResult}
-        isLiveEvidence
         onAccept={onAccept}
         onEdit={vi.fn()}
         onSendForHumanReview={vi.fn()}
@@ -48,7 +46,6 @@ describe("AIRecommendationCard", () => {
     render(
       <AIRecommendationCard
         result={sampleRoutingResult}
-        isLiveEvidence
         onAccept={vi.fn()}
         onEdit={onEdit}
         onSendForHumanReview={vi.fn()}
@@ -69,7 +66,6 @@ describe("AIRecommendationCard", () => {
     render(
       <AIRecommendationCard
         result={{ ...sampleRoutingResult, category: "Needs Clarification", clarification_questions: ["Which product is affected?"] }}
-        isLiveEvidence
         onAccept={vi.fn()}
         onEdit={vi.fn()}
         onSendForHumanReview={vi.fn()}

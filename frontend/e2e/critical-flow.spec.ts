@@ -1,10 +1,13 @@
 import { expect, test } from "@playwright/test"
+import { loginAs } from "./helpers"
 
-// The one critical golden path: an agent opens the workspace, picks an
-// unrouted ticket, routes it with AI, and accepts the recommendation.
-// Requires the backend (port 8000) + a seeded database to be running.
+// The one critical golden path: an agent logs in, opens an unrouted ticket,
+// routes it with AI, and accepts the recommendation.
+// Requires the backend (port 8000) + a seeded database + demo auth accounts
+// (`python -m app.db.seed_auth`) to be running.
 test("agent can route a ticket and accept the AI recommendation", async ({ page }) => {
-  await page.goto("/")
+  await loginAs(page, "agent@example.com")
+  await page.waitForURL("**/workspace")
 
   await expect(page.getByRole("heading", { name: "Smart Support Ticket Router" })).toBeVisible()
 

@@ -1,5 +1,13 @@
 import { useState } from "react"
-import type { AssignedTeam, RoutingResult, TicketCategory, TicketPriority, TicketRead } from "../types"
+import type {
+  AgentRosterItem,
+  AssignedTeam,
+  RoutingResult,
+  TicketCategory,
+  TicketMessage,
+  TicketPriority,
+  TicketRead,
+} from "../types"
 import { AIRecommendationCard } from "./AIRecommendationCard"
 import { PriorityBadge, StatusBadge } from "./Badge"
 import { ContextComparisonPanel } from "./ContextComparisonPanel"
@@ -10,8 +18,11 @@ interface ConversationPanelProps {
   isLoading: boolean
   error: string | null
   onRetry: () => void
+  messages: TicketMessage[]
+  agentRoster: AgentRosterItem[]
+  onAssign: (agentUserId: number) => void
+  onSendMessage: (body: string, messageType: "Agent Reply" | "Internal Note") => void
   routingResult: RoutingResult | null
-  routingResultIsLive: boolean
   isRouting: boolean
   isSubmittingFeedback: boolean
   actionError: string | null
@@ -27,8 +38,11 @@ export function ConversationPanel({
   isLoading,
   error,
   onRetry,
+  messages,
+  agentRoster,
+  onAssign,
+  onSendMessage,
   routingResult,
-  routingResultIsLive,
   isRouting,
   isSubmittingFeedback,
   actionError,
@@ -39,7 +53,9 @@ export function ConversationPanel({
   onResolveTicket,
 }: ConversationPanelProps) {
   const [activeTab, setActiveTab] = useState<"public" | "internal">("public")
+  const [composerText, setComposerText] = useState("")
   const [resolutionText, setResolutionText] = useState("")
+  const [assigneeId, setAssigneeId] = useState<number | "">("")
 
   if (isLoading) {
     return (
@@ -66,6 +82,15 @@ export function ConversationPanel({
   }
 
   const isUnrouted = ticket.category === null
+  const visibleMessages = messages.filter((m) =>
+    activeTab === "public" ? m.message_type !== "Internal Note" : m.message_type === "Internal Note",
+  )
+
+  function handleSend() {
+    if (!composerText.trim()) return
+    onSendMessage(composerText.trim(), activeTab === "public" ? "Agent Reply" : "Internal Note")
+    setComposerText("")
+  }
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-white">
@@ -84,6 +109,33 @@ export function ConversationPanel({
           {ticket.assigned_team && (
             <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{ticket.assigned_team}</span>
           )}
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <select
+            aria-label="Assign to agent"
+            value={assigneeId}
+            onChange={(e) => setAssigneeId(e.target.value ? Number(e.target.value) : "")}
+            className="rounded border border-slate-300 px-2 py-1 text-xs"
+          >
+            <option value="">Assign to...</option>
+            {agentRoster.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.display_name}
+                {agent.team ? ` (${agent.team})` : ""}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={assigneeId === ""}
+            onClick={() => {
+              if (assigneeId !== "") onAssign(assigneeId)
+            }}
+            className="rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Assign
+          </button>
         </div>
       </div>
 
@@ -115,14 +167,44 @@ export function ConversationPanel({
           <p className="whitespace-pre-wrap text-sm text-slate-700">{ticket.message}</p>
         </div>
 
-        {activeTab === "public" && (
-          <p className="text-xs text-slate-400">
-            Public reply composer is not part of this demo's scope — routing decisions are the focus here.
-          </p>
-        )}
-        {activeTab === "internal" && (
-          <p className="text-xs text-slate-400">Internal notes are not persisted in this demo.</p>
-        )}
+        <div className="space-y-2">
+          {visibleMessages.length === 0 && (
+            <p className="text-xs text-slate-400">
+              {activeTab === "public" ? "No replies yet." : "No internal notes yet."}
+            </p>
+          )}
+          {visibleMessages.map((message) => (
+            <div
+              key={message.id}
+              className={`rounded-md p-2.5 text-sm ${
+                message.message_type === "Internal Note" ? "bg-amber-50 ring-1 ring-amber-200" : "bg-white ring-1 ring-slate-200"
+              }`}
+            >
+              <p className="text-xs font-medium text-slate-500">
+                {message.author_label} &middot; {new Date(message.created_at).toLocaleString()}
+              </p>
+              <p className="mt-1 text-slate-700">{message.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <textarea
+            value={composerText}
+            onChange={(e) => setComposerText(e.target.value)}
+            rows={2}
+            placeholder={activeTab === "public" ? "Reply to the customer..." : "Note visible only to agents..."}
+            className="flex-1 rounded border border-slate-300 p-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!composerText.trim()}
+            className="self-end rounded bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
 
         {actionError && <ErrorState message={actionError} />}
 
@@ -140,7 +222,6 @@ export function ConversationPanel({
         {routingResult && (
           <AIRecommendationCard
             result={routingResult}
-            isLiveEvidence={routingResultIsLive}
             onAccept={onAcceptRouting}
             onEdit={onEditRouting}
             onSendForHumanReview={onSendForHumanReview}

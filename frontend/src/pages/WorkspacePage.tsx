@@ -3,48 +3,26 @@ import { ConversationPanel } from "../components/ConversationPanel"
 import { Customer360 } from "../components/Customer360"
 import { NewTicketForm } from "../components/NewTicketForm"
 import { TicketQueue } from "../components/TicketQueue"
+import { useAuth } from "../contexts/AuthContext"
 import { api, ApiError } from "../services/api"
 import type {
+  AgentRosterItem,
   AssignedTeam,
   Customer,
   CustomerDetail,
   RoutingResult,
   TicketCategory,
   TicketListItem,
+  TicketMessage,
   TicketPriority,
   TicketQueueFilter,
   TicketRead,
 } from "../types"
 
-const EMPTY_CONTEXT_USED = {
-  customer_profile_used: false,
-  product_ids: [],
-  active_incident_ids: [],
-  similar_ticket_ids: [],
-  knowledge_document_ids: [],
-}
-
-/** Builds a RoutingResult to display for a ticket that was already routed in a
- * previous session, when we don't have that session's in-memory evidence (the
- * ticket's own category/priority/etc. are persisted, but context_used ids aren't). */
-function resultFromPersistedTicket(ticket: TicketRead): RoutingResult | null {
-  if (!ticket.category || !ticket.priority || !ticket.assigned_team) {
-    return null
-  }
-  return {
-    category: ticket.category,
-    priority: ticket.priority,
-    assigned_team: ticket.assigned_team,
-    reasoning: ticket.reasoning ?? "(reasoning not available for this session)",
-    confidence: ticket.confidence ?? 0,
-    needs_human_review: ticket.needs_human_review,
-    clarification_questions: [],
-    context_used: EMPTY_CONTEXT_USED,
-  }
-}
-
 export function WorkspacePage() {
+  const { user } = useAuth()
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [agentRoster, setAgentRoster] = useState<AgentRosterItem[]>([])
 
   const [filter, setFilter] = useState<TicketQueueFilter>("all")
   const [tickets, setTickets] = useState<TicketListItem[]>([])
@@ -56,12 +34,18 @@ export function WorkspacePage() {
   const [ticketDetailLoading, setTicketDetailLoading] = useState(false)
   const [ticketDetailError, setTicketDetailError] = useState<string | null>(null)
 
+  const [messages, setMessages] = useState<TicketMessage[]>([])
+
   const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null)
   const [customerTickets, setCustomerTickets] = useState<TicketRead[]>([])
   const [customerLoading, setCustomerLoading] = useState(false)
   const [customerError, setCustomerError] = useState<string | null>(null)
 
+  // Evidence for the currently selected ticket: freshly-routed results this
+  // session take priority; otherwise fall back to what's persisted in the DB
+  // (see GET /api/tickets/{id}/evidence) — both are equally "real" evidence.
   const [routingResults, setRoutingResults] = useState<Record<number, RoutingResult>>({})
+  const [persistedEvidence, setPersistedEvidence] = useState<Record<number, RoutingResult>>({})
   const [isRouting, setIsRouting] = useState(false)
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -78,6 +62,7 @@ export function WorkspacePage() {
 
   useEffect(() => {
     api.getCustomers().then(setCustomers).catch(() => setCustomers([]))
+    api.getAgentRoster().then(setAgentRoster).catch(() => setAgentRoster([]))
   }, [])
 
   useEffect(() => {
@@ -94,11 +79,26 @@ export function WorkspacePage() {
       .finally(() => setTicketDetailLoading(false))
   }, [])
 
+  const loadMessages = useCallback((ticketId: number) => {
+    api.listTicketMessages(ticketId).then(setMessages).catch(() => setMessages([]))
+  }, [])
+
+  const loadEvidence = useCallback((ticketId: number) => {
+    api
+      .getTicketEvidence(ticketId)
+      .then((evidence) => setPersistedEvidence((prev) => ({ ...prev, [ticketId]: evidence })))
+      .catch(() => {
+        /* not routed yet — no evidence to show, which is fine */
+      })
+  }, [])
+
   useEffect(() => {
     if (selectedTicketId !== null) {
       loadTicketDetail(selectedTicketId)
+      loadMessages(selectedTicketId)
+      loadEvidence(selectedTicketId)
     }
-  }, [selectedTicketId, loadTicketDetail])
+  }, [selectedTicketId, loadTicketDetail, loadMessages, loadEvidence])
 
   const loadCustomerData = useCallback((customerId: number, currentTicketId: number) => {
     setCustomerLoading(true)
@@ -211,19 +211,45 @@ export function WorkspacePage() {
     }
   }
 
+  async function handleSendMessage(body: string, messageType: "Agent Reply" | "Internal Note") {
+    if (!selectedTicket) return
+    setActionError(null)
+    try {
+      await api.addTicketMessage(selectedTicket.id, body, messageType)
+      loadMessages(selectedTicket.id)
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not send this message.")
+    }
+  }
+
+  async function handleAssign(agentUserId: number) {
+    if (!selectedTicket) return
+    setActionError(null)
+    try {
+      await api.assignTicket(selectedTicket.id, agentUserId)
+      refreshAfterMutation(selectedTicket.id)
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not assign this ticket.")
+    }
+  }
+
   function handleNewTicketRouted(ticketId: number) {
     loadTickets()
     setSelectedTicketId(ticketId)
   }
 
-  const isEvidenceLive = Boolean(selectedTicket && routingResults[selectedTicket.id])
   const displayResult = selectedTicket
-    ? routingResults[selectedTicket.id] ?? resultFromPersistedTicket(selectedTicket)
+    ? routingResults[selectedTicket.id] ?? persistedEvidence[selectedTicket.id] ?? null
     : null
 
   return (
     <div className="grid h-[calc(100vh-3rem)] grid-cols-[320px_1fr_320px]">
       <div className="flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-xs text-slate-500">
+          <span>
+            {user?.agent_display_name ?? user?.email} {user?.agent_team ? `· ${user.agent_team}` : ""}
+          </span>
+        </div>
         <NewTicketForm customers={customers} onRouted={handleNewTicketRouted} />
         <div className="flex-1 overflow-hidden">
           <TicketQueue
@@ -244,8 +270,11 @@ export function WorkspacePage() {
         isLoading={ticketDetailLoading}
         error={ticketDetailError}
         onRetry={() => selectedTicketId && loadTicketDetail(selectedTicketId)}
+        messages={messages}
+        agentRoster={agentRoster}
+        onAssign={handleAssign}
+        onSendMessage={handleSendMessage}
         routingResult={displayResult}
-        routingResultIsLive={isEvidenceLive}
         isRouting={isRouting}
         isSubmittingFeedback={isSubmittingFeedback}
         actionError={actionError}
@@ -260,7 +289,6 @@ export function WorkspacePage() {
         customer={customerDetail}
         customerTickets={customerTickets}
         aiEvidence={displayResult}
-        aiEvidenceIsLive={isEvidenceLive}
         isLoading={customerLoading}
         error={customerError}
         onRetry={() => selectedTicket && loadCustomerData(selectedTicket.customer_id, selectedTicket.id)}

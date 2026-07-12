@@ -20,9 +20,25 @@ vi.mock("../../services/api", async () => {
       resolveTicket: vi.fn(),
       getActiveIncidents: vi.fn(),
       getMetricsSummary: vi.fn(),
+      getAgentRoster: vi.fn(),
+      listTicketMessages: vi.fn(),
+      getTicketEvidence: vi.fn(),
+      addTicketMessage: vi.fn(),
+      assignTicket: vi.fn(),
     },
   }
 })
+
+vi.mock("../../contexts/AuthContext", () => ({
+  useAuth: () => ({
+    user: { id: 1, email: "agent@example.com", role: "Support Agent", agent_display_name: "Demo Agent", agent_team: "General Support" },
+    isLoading: false,
+    login: vi.fn(),
+    signup: vi.fn(),
+    logout: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}))
 
 describe("WorkspacePage", () => {
   beforeEach(() => {
@@ -31,6 +47,9 @@ describe("WorkspacePage", () => {
     vi.mocked(api.getTicket).mockResolvedValue(sampleTicketRead)
     vi.mocked(api.getCustomer).mockResolvedValue(sampleCustomerDetail)
     vi.mocked(api.getCustomerTickets).mockResolvedValue([])
+    vi.mocked(api.getAgentRoster).mockResolvedValue([])
+    vi.mocked(api.listTicketMessages).mockResolvedValue([])
+    vi.mocked(api.getTicketEvidence).mockRejectedValue(new Error("not routed"))
   })
 
   it("loads and displays the ticket queue and, once a ticket is selected, the customer 360 view", async () => {

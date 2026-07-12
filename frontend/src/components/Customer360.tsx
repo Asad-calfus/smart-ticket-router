@@ -17,24 +17,12 @@ interface Customer360Props {
   customer: CustomerDetail | null
   customerTickets: TicketRead[]
   aiEvidence: RoutingResult | null
-  /** True when aiEvidence came from this session's live routing call (full evidence ids
-   * available), false when it was reconstructed from a ticket routed in an earlier session
-   * (evidence ids were never persisted, so only the decision itself can be shown). */
-  aiEvidenceIsLive: boolean
   isLoading: boolean
   error: string | null
   onRetry: () => void
 }
 
-export function Customer360({
-  customer,
-  customerTickets,
-  aiEvidence,
-  aiEvidenceIsLive,
-  isLoading,
-  error,
-  onRetry,
-}: Customer360Props) {
+export function Customer360({ customer, customerTickets, aiEvidence, isLoading, error, onRetry }: Customer360Props) {
   const [activeTab, setActiveTab] = useState<Tab>("profile")
 
   if (isLoading) {
@@ -167,12 +155,6 @@ export function Customer360({
             />
           ) : (
             <div className="space-y-2 text-xs text-slate-600">
-              {!aiEvidenceIsLive && (
-                <p className="rounded bg-amber-50 p-2 text-amber-700 ring-1 ring-amber-200">
-                  This ticket was routed in an earlier session — evidence ids weren't kept, only the decision
-                  below. Re-route the ticket to see fresh evidence.
-                </p>
-              )}
               <p>Customer profile used: {aiEvidence.context_used.customer_profile_used ? "Yes" : "No"}</p>
               <p>Product ids referenced: {aiEvidence.context_used.product_ids.join(", ") || "none"}</p>
               <p>Matching incident ids: {aiEvidence.context_used.active_incident_ids.join(", ") || "none"}</p>

@@ -21,6 +21,7 @@ const STATUS_STYLES: Record<TicketStatus, string> = {
   "In Progress": "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200",
   "Needs Human Review": "bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200",
   Resolved: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+  Reopened: "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200",
 }
 
 export function StatusBadge({ status }: { status: TicketStatus }) {
