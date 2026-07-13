@@ -15,6 +15,7 @@ MESSAGE_PREVIEW_LENGTH = 80
 
 class TicketQueueFilter(str, enum.Enum):
     ALL = "all"
+    NEW_TICKETS = "new_tickets"
     UNASSIGNED = "unassigned"
     HIGH_PRIORITY = "high_priority"
     NEEDS_HUMAN_REVIEW = "needs_human_review"
@@ -84,7 +85,18 @@ def to_ticket_read(ticket: Ticket, customer_name: str) -> TicketRead:
 def list_tickets(db: Session, queue_filter: TicketQueueFilter = TicketQueueFilter.ALL) -> list[TicketListItem]:
     stmt = select(Ticket, Customer.name).join(Customer, Customer.id == Ticket.customer_id)
 
-    if queue_filter == TicketQueueFilter.UNASSIGNED:
+    if queue_filter == TicketQueueFilter.NEW_TICKETS:
+        stmt = stmt.where(
+            Ticket.status.in_(
+                (
+                    TicketStatus.OPEN,
+                    TicketStatus.ROUTED,
+                    TicketStatus.NEEDS_HUMAN_REVIEW,
+                    TicketStatus.REOPENED,
+                )
+            )
+        )
+    elif queue_filter == TicketQueueFilter.UNASSIGNED:
         stmt = stmt.where(Ticket.status == TicketStatus.OPEN)
     elif queue_filter == TicketQueueFilter.HIGH_PRIORITY:
         stmt = stmt.where(Ticket.priority == TicketPriority.HIGH)
@@ -96,7 +108,9 @@ def list_tickets(db: Session, queue_filter: TicketQueueFilter = TicketQueueFilte
             return []
         stmt = stmt.where(Ticket.customer_id.in_(customer_ids))
 
-    stmt = stmt.order_by(Ticket.created_at.desc())
+    # ID is a deterministic tie-breaker for tickets created in the same
+    # database timestamp, keeping the newest ticket visibly at the top.
+    stmt = stmt.order_by(Ticket.created_at.desc(), Ticket.id.desc())
     rows = db.execute(stmt).all()
     return [to_ticket_list_item(ticket, customer_name) for ticket, customer_name in rows]
 

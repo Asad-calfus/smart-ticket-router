@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { AuthCard, FormField, inputClassName, primaryButtonClassName } from "../../components/AuthCard"
+import { AuthCard, FormField } from "../../components/AuthCard"
+import { PasswordInput } from "../../components/ui/Input"
+import { Button } from "../../components/ui/Button"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { api, ApiError } from "../../services/api"
 
 export function ResetPasswordPage() {
@@ -30,8 +33,8 @@ export function ResetPasswordPage() {
   if (!token) {
     return (
       <AuthCard title="Reset password">
-        <p className="text-sm text-red-600">This link is missing its reset token.</p>
-        <Link to="/forgot-password" className="mt-3 inline-block text-xs text-slate-600 hover:underline">
+        <InlineFeedback tone="error" message="This link is missing its reset token." />
+        <Link to="/forgot-password" className="mt-3 inline-block text-xs text-muted-foreground hover:underline">
           Request a new link
         </Link>
       </AuthCard>
@@ -41,29 +44,27 @@ export function ResetPasswordPage() {
   return (
     <AuthCard title="Reset password">
       {done ? (
-        <p className="text-sm text-slate-700">Password reset. Redirecting you to log in...</p>
+        <InlineFeedback tone="success" message="Password reset. Redirecting you to log in..." />
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           <FormField label="New password" htmlFor="new-password">
-            <input
+            <PasswordInput
               id="new-password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={8}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className={inputClassName}
             />
           </FormField>
           {error && (
-            <p className="mb-3 text-xs font-medium text-red-600" role="alert">
-              {error}
-            </p>
+            <div className="mb-3">
+              <InlineFeedback tone="error" message={error} />
+            </div>
           )}
-          <button type="submit" disabled={isSubmitting} className={primaryButtonClassName}>
+          <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full">
             {isSubmitting ? "Resetting..." : "Reset password"}
-          </button>
+          </Button>
         </form>
       )}
     </AuthCard>

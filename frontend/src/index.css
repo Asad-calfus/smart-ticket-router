@@ -1,5 +1,147 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+ * Design tokens. Raw values live on :root / [data-theme="dark"]; the
+ * @theme block maps them onto Tailwind's color namespace so `bg-surface`,
+ * `text-muted-foreground`, `border-border`, etc. become real utility classes.
+ * Never hardcode a hex value in a component — add/use a token here instead.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  --background: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --foreground: #172033;
+  --muted-foreground: #667085;
+  --border: #dde2ea;
+
+  --accent: #2f5fda;
+  --accent-hover: #2650bd;
+  --accent-foreground: #ffffff;
+  --accent-subtle: #eaf0fe;
+
+  --danger: #b42318;
+  --danger-bg: #fef3f2;
+  --danger-border: #fda29b;
+
+  --warning: #b54708;
+  --warning-bg: #fffaeb;
+  --warning-border: #fec84b;
+
+  --success: #027a48;
+  --success-bg: #ecfdf3;
+  --success-border: #a6f4c5;
+
+  --review: #c4320a;
+  --review-bg: #fff6ed;
+  --review-border: #f9dbaf;
+
+  --selected-bg: #eaf0fe;
+  --selected-border: #b6cbfa;
+
+  --focus-ring: #2f5fda;
+  --shadow-float: 0 4px 16px rgba(16, 24, 40, 0.12), 0 2px 4px rgba(16, 24, 40, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --background: #0d1117;
+  --surface: #151a23;
+  --surface-2: #1b2230;
+  --foreground: #e7ecf3;
+  --muted-foreground: #98a2b3;
+  --border: #293244;
+
+  --accent: #6d9bf5;
+  --accent-hover: #8ab0f7;
+  --accent-foreground: #0d1117;
+  --accent-subtle: #1a2740;
+
+  --danger: #f0857d;
+  --danger-bg: #2a1215;
+  --danger-border: #5c2326;
+
+  --warning: #fbbf24;
+  --warning-bg: #241d0d;
+  --warning-border: #5c4a1e;
+
+  --success: #3fd99a;
+  --success-bg: #0f241c;
+  --success-border: #1f4a3a;
+
+  --review: #fb923c;
+  --review-bg: #2b1d0f;
+  --review-border: #5c3b1e;
+
+  --selected-bg: #1a2740;
+  --selected-border: #3a5aa8;
+
+  --focus-ring: #6d9bf5;
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-subtle: var(--accent-subtle);
+
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+
+  --color-review: var(--review);
+  --color-review-bg: var(--review-bg);
+  --color-review-border: var(--review-border);
+
+  --color-selected-bg: var(--selected-bg);
+  --color-selected-border: var(--selected-border);
+
+  --color-focus-ring: var(--focus-ring);
+
+  --shadow-float: var(--shadow-float);
+}
+
 body {
   margin: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::selection {
+  background-color: var(--selected-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

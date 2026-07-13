@@ -13,6 +13,7 @@ describe("AIRecommendationCard", () => {
         onEdit={vi.fn()}
         onSendForHumanReview={vi.fn()}
         isSubmitting={false}
+        ticketStatus="Routed"
       />,
     )
 
@@ -33,6 +34,7 @@ describe("AIRecommendationCard", () => {
         onEdit={vi.fn()}
         onSendForHumanReview={vi.fn()}
         isSubmitting={false}
+        ticketStatus="Routed"
       />,
     )
 
@@ -50,6 +52,7 @@ describe("AIRecommendationCard", () => {
         onEdit={onEdit}
         onSendForHumanReview={vi.fn()}
         isSubmitting={false}
+        ticketStatus="Routed"
       />,
     )
 
@@ -70,9 +73,42 @@ describe("AIRecommendationCard", () => {
         onEdit={vi.fn()}
         onSendForHumanReview={vi.fn()}
         isSubmitting={false}
+        ticketStatus="Routed"
       />,
     )
 
     expect(screen.getByText("Which product is affected?")).toBeInTheDocument()
+  })
+
+  it("shows a clear completed state and hides duplicate routing actions", () => {
+    render(
+      <AIRecommendationCard
+        result={sampleRoutingResult}
+        onAccept={vi.fn()}
+        onEdit={vi.fn()}
+        onSendForHumanReview={vi.fn()}
+        isSubmitting={false}
+        ticketStatus="In Progress"
+      />,
+    )
+
+    expect(screen.queryByRole("button", { name: "Accept Routing" })).not.toBeInTheDocument()
+    expect(screen.getByText(/Routing decision confirmed/)).toBeInTheDocument()
+  })
+
+  it("lets a human-review ticket be accepted into active work", () => {
+    render(
+      <AIRecommendationCard
+        result={{ ...sampleRoutingResult, needs_human_review: true }}
+        onAccept={vi.fn()}
+        onEdit={vi.fn()}
+        onSendForHumanReview={vi.fn()}
+        isSubmitting={false}
+        ticketStatus="Needs Human Review"
+      />,
+    )
+
+    expect(screen.getByRole("button", { name: "Accept & Start Work" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Review Requested" })).toBeDisabled()
   })
 })

@@ -38,7 +38,7 @@ describe("NewTicketForm", () => {
 
     render(<NewTicketForm customers={[sampleCustomer]} onRouted={onRouted} />)
 
-    await user.click(screen.getByRole("button", { name: "+ New Ticket" }))
+    await user.click(screen.getByRole("button", { name: "New Ticket" }))
     await user.selectOptions(screen.getByRole("combobox", { name: "Customer" }), "1")
     await user.type(screen.getByPlaceholderText("Describe the issue..."), "Dashboard is not loading.")
     await user.click(screen.getByRole("button", { name: "Submit & Route" }))
@@ -55,7 +55,7 @@ describe("NewTicketForm", () => {
 
     render(<NewTicketForm customers={[sampleCustomer]} onRouted={vi.fn()} />)
 
-    await user.click(screen.getByRole("button", { name: "+ New Ticket" }))
+    await user.click(screen.getByRole("button", { name: "New Ticket" }))
     await user.selectOptions(screen.getByRole("combobox", { name: "Customer" }), "1")
     await user.type(screen.getByPlaceholderText("Describe the issue..."), "Dashboard is not loading.")
     await user.click(screen.getByRole("button", { name: "Submit & Route" }))

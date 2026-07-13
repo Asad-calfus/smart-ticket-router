@@ -1,6 +1,10 @@
 import { useState } from "react"
+import { Plus } from "lucide-react"
 import { api, ApiError } from "../services/api"
 import type { Customer, TicketChannel } from "../types"
+import { Button } from "./ui/Button"
+import { Select, Textarea } from "./ui/Input"
+import { InlineFeedback } from "./ui/Toast"
 
 const CHANNELS: TicketChannel[] = ["Email", "Chat", "Phone", "Portal"]
 
@@ -37,24 +41,21 @@ export function NewTicketForm({ customers, onRouted }: NewTicketFormProps) {
 
   if (!isOpen) {
     return (
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className="m-3 rounded bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
-      >
-        + New Ticket
-      </button>
+      <div className="m-3">
+        <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => setIsOpen(true)}>
+          New Ticket
+        </Button>
+      </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="m-3 space-y-2 rounded-md border border-slate-200 p-3">
-      <p className="text-xs font-semibold text-slate-600">Submit a new support message</p>
-      <select
+    <form onSubmit={handleSubmit} className="m-3 space-y-2 rounded-md border border-border p-3">
+      <p className="text-xs font-semibold text-muted-foreground">Submit a new support message</p>
+      <Select
         aria-label="Customer"
         value={customerId}
         onChange={(event) => setCustomerId(event.target.value ? Number(event.target.value) : "")}
-        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
         required
       >
         <option value="">Select customer...</option>
@@ -63,42 +64,28 @@ export function NewTicketForm({ customers, onRouted }: NewTicketFormProps) {
             {customer.name}
           </option>
         ))}
-      </select>
-      <select
-        aria-label="Channel"
-        value={channel}
-        onChange={(event) => setChannel(event.target.value as TicketChannel)}
-        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-      >
+      </Select>
+      <Select aria-label="Channel" value={channel} onChange={(event) => setChannel(event.target.value as TicketChannel)}>
         {CHANNELS.map((option) => (
           <option key={option}>{option}</option>
         ))}
-      </select>
-      <textarea
+      </Select>
+      <Textarea
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         placeholder="Describe the issue..."
         rows={3}
         maxLength={4000}
-        className="w-full rounded border border-slate-300 p-2 text-sm"
         required
       />
-      {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+      {error && <InlineFeedback tone="error" message={error} />}
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
           {isSubmitting ? "Routing..." : "Submit & Route"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsOpen(false)}
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-        >
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => setIsOpen(false)}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   )

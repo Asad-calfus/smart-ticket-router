@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { AuthCard } from "../../components/AuthCard"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { api, ApiError } from "../../services/api"
 
 export function VerifyEmailPage() {
@@ -29,11 +30,9 @@ export function VerifyEmailPage() {
 
   return (
     <AuthCard title="Email verification">
-      {status === "loading" && <p className="text-sm text-slate-500">Verifying...</p>}
-      {status !== "loading" && (
-        <p className={`text-sm ${status === "success" ? "text-emerald-700" : "text-red-600"}`}>{message}</p>
-      )}
-      <Link to="/login" className="mt-4 inline-block text-xs text-slate-600 hover:underline">
+      {status === "loading" && <p className="text-sm text-muted-foreground">Verifying...</p>}
+      {status !== "loading" && <InlineFeedback tone={status === "success" ? "success" : "error"} message={message} />}
+      <Link to="/login" className="mt-4 inline-block text-xs text-muted-foreground hover:underline">
         Back to login
       </Link>
     </AuthCard>

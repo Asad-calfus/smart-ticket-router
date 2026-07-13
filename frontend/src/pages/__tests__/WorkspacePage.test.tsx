@@ -18,7 +18,6 @@ vi.mock("../../services/api", async () => {
       routeTicket: vi.fn(),
       submitFeedback: vi.fn(),
       resolveTicket: vi.fn(),
-      getActiveIncidents: vi.fn(),
       getMetricsSummary: vi.fn(),
       getAgentRoster: vi.fn(),
       listTicketMessages: vi.fn(),

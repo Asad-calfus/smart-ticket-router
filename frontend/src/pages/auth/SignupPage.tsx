@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { AuthCard, FormField, inputClassName, primaryButtonClassName } from "../../components/AuthCard"
+import { AuthCard, FormField } from "../../components/AuthCard"
+import { Input, PasswordInput } from "../../components/ui/Input"
+import { Button } from "../../components/ui/Button"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { useAuth } from "../../contexts/AuthContext"
 import { ApiError } from "../../services/api"
 
@@ -32,57 +35,43 @@ export function SignupPage() {
     <AuthCard title="Create your account" subtitle="For customers only — agents are invited by an admin.">
       <form onSubmit={handleSubmit} noValidate>
         <FormField label="Full name" htmlFor="name">
-          <input
-            id="name"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClassName}
-          />
+          <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
         </FormField>
         <FormField label="Email" htmlFor="email">
-          <input
+          <Input
             id="email"
             type="email"
             autoComplete="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className={inputClassName}
           />
         </FormField>
         <FormField label="Password" htmlFor="password">
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             required
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={inputClassName}
           />
         </FormField>
         <FormField label="Location (optional)" htmlFor="location">
-          <input
-            id="location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className={inputClassName}
-          />
+          <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} />
         </FormField>
         {error && (
-          <p className="mb-3 text-xs font-medium text-red-600" role="alert">
-            {error}
-          </p>
+          <div className="mb-3">
+            <InlineFeedback tone="error" message={error} />
+          </div>
         )}
-        <button type="submit" disabled={isSubmitting} className={primaryButtonClassName}>
+        <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full">
           {isSubmitting ? "Creating account..." : "Sign up"}
-        </button>
+        </Button>
       </form>
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-muted-foreground">
         Already have an account?{" "}
-        <Link to="/login" className="font-medium text-slate-700 hover:underline">
+        <Link to="/login" className="font-medium text-foreground hover:underline">
           Log in
         </Link>
       </p>

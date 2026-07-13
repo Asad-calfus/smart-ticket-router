@@ -404,7 +404,24 @@ def _get_llm_output_with_retry(message: str, prompt: str) -> _LLMOutput | None:
 
 def _is_vague(message: str) -> bool:
     stripped = message.strip(" .!?")
-    return len(message.split()) <= VAGUE_MESSAGE_MAX_WORDS or stripped.lower() in _VAGUE_MESSAGES
+    text = stripped.lower()
+    if text in _VAGUE_MESSAGES:
+        return True
+    # A bare number/reference contains no issue, product, or requested action.
+    if re.fullmatch(r"[\d\s#._-]+", stripped):
+        return True
+    if len(message.split()) > VAGUE_MESSAGE_MAX_WORDS:
+        return False
+    actionable_keywords = (
+        _SECURITY_KEYWORDS
+        + _OUTAGE_KEYWORDS
+        + _REFUND_KEYWORDS
+        + _BILLING_KEYWORDS
+        + _ACCOUNT_ACCESS_KEYWORDS
+        + _TECHNICAL_KEYWORDS
+        + _PRODUCT_QUERY_KEYWORDS
+    )
+    return not any(keyword in text for keyword in actionable_keywords)
 
 
 def _mentions_outage(text: str) -> bool:
@@ -435,10 +452,12 @@ def apply_backend_safeguards(result: RoutingResult, message: str, context: Custo
     if the model output ignored the prompt's business rules."""
     updates: dict = {}
 
-    if _is_vague(message) and result.category != TicketCategory.NEEDS_CLARIFICATION:
+    vague_or_unclassifiable = _is_vague(message) or result.category == TicketCategory.NEEDS_CLARIFICATION
+    if vague_or_unclassifiable:
         updates["category"] = TicketCategory.NEEDS_CLARIFICATION
         updates["assigned_team"] = AssignedTeam.GENERAL_SUPPORT
         updates["needs_human_review"] = True
+        updates["priority"] = TicketPriority.LOW
         if not result.clarification_questions:
             updates["clarification_questions"] = _default_clarification_questions()
 
@@ -451,19 +470,19 @@ def apply_backend_safeguards(result: RoutingResult, message: str, context: Custo
     billing_or_access_related = category in (
         TicketCategory.BILLING,
         TicketCategory.ACCOUNT_ACCESS,
-        TicketCategory.NEEDS_CLARIFICATION,
     )
-    technical_or_ambiguous = category in (TicketCategory.TECHNICAL_ISSUE, TicketCategory.NEEDS_CLARIFICATION)
+    technical_related = category == TicketCategory.TECHNICAL_ISSUE
 
-    priority = result.priority
-    if category == TicketCategory.SECURITY:
-        priority = TicketPriority.HIGH
-    if _mentions_outage(text):
-        priority = TicketPriority.HIGH
-    if billing_or_access_related and _payment_deducted_access_missing(context):
-        priority = TicketPriority.HIGH
-    if technical_or_ambiguous and _has_critical_active_incident(context) and priority == TicketPriority.MEDIUM:
-        priority = TicketPriority.HIGH
+    priority = updates.get("priority", result.priority)
+    if not vague_or_unclassifiable:
+        if category == TicketCategory.SECURITY:
+            priority = TicketPriority.HIGH
+        if _mentions_outage(text):
+            priority = TicketPriority.HIGH
+        if billing_or_access_related and _payment_deducted_access_missing(context):
+            priority = TicketPriority.HIGH
+        if technical_related and _has_critical_active_incident(context) and priority == TicketPriority.MEDIUM:
+            priority = TicketPriority.HIGH
     if priority != result.priority:
         updates["priority"] = priority
 

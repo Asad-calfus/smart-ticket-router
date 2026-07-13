@@ -64,8 +64,12 @@ describe("AgentsPage", () => {
     await screen.findByText("agent@example.com")
 
     await user.click(screen.getByRole("button", { name: "Deactivate" }))
+    const confirmButtons = screen.getAllByRole("button", { name: "Deactivate" })
+    await user.click(confirmButtons[confirmButtons.length - 1])
 
     expect(api.deactivateAgent).toHaveBeenCalledWith(4)
-    expect(await screen.findByText("Deactivated")).toBeInTheDocument()
+    await vi.waitFor(() => {
+      expect(screen.getByRole("row", { name: /agent@example.com/ })).toHaveTextContent("Deactivated")
+    })
   })
 })

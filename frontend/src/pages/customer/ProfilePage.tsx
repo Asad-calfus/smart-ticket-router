@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react"
 import { ErrorState, LoadingSkeleton } from "../../components/StateViews"
+import { Input } from "../../components/ui/Input"
+import { Button } from "../../components/ui/Button"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { api, ApiError } from "../../services/api"
 import type { MyProfile } from "../../types"
 
@@ -52,65 +55,66 @@ export function ProfilePage() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-slate-800">Profile</h2>
-      <p className="mt-1 text-sm text-slate-500">{profile.email}</p>
+      <h2 className="text-lg font-semibold text-foreground">Profile</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{profile.email}</p>
 
-      <form onSubmit={handleSubmit} className="mt-4 max-w-md space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-        <label className="block text-xs font-medium text-slate-600">
+      <form onSubmit={handleSubmit} className="mt-4 max-w-md space-y-3 rounded-lg border border-border bg-surface p-4">
+        <label htmlFor="profile-name" className="block text-xs font-medium text-muted-foreground">
           Name
-          <input
+          <Input
+            id="profile-name"
             value={profile.name}
             onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1"
           />
         </label>
-        <label className="block text-xs font-medium text-slate-600">
+        <label htmlFor="profile-location" className="block text-xs font-medium text-muted-foreground">
           Location
-          <input
+          <Input
+            id="profile-location"
             value={profile.location}
             onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1"
           />
         </label>
-        <label className="block text-xs font-medium text-slate-600">
+        <label htmlFor="profile-language" className="block text-xs font-medium text-muted-foreground">
           Preferred language
-          <input
+          <Input
+            id="profile-language"
             value={profile.preferred_language}
             onChange={(e) => setProfile({ ...profile, preferred_language: e.target.value })}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1"
           />
         </label>
-        <label className="block text-xs font-medium text-slate-600">
+        <label htmlFor="profile-company" className="block text-xs font-medium text-muted-foreground">
           Company
-          <input
+          <Input
+            id="profile-company"
             value={profile.company ?? ""}
             onChange={(e) => setProfile({ ...profile, company: e.target.value })}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1"
           />
         </label>
-        <label className="block text-xs font-medium text-slate-600">
+        <label htmlFor="profile-phone" className="block text-xs font-medium text-muted-foreground">
           Phone
-          <input
+          <Input
+            id="profile-phone"
             value={profile.phone ?? ""}
             onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1"
           />
         </label>
-        <div className="text-xs text-slate-400">
-          Plan: <span className="font-medium text-slate-600">{profile.tier}</span> (managed by support, not editable
+        <div className="text-xs text-muted-foreground">
+          Plan: <span className="font-medium text-foreground">{profile.tier}</span> (managed by support, not editable
           here)
         </div>
 
-        {error && <p className="text-xs font-medium text-red-600">{error}</p>}
-        {savedMessage && <p className="text-xs font-medium text-emerald-600">{savedMessage}</p>}
+        {error && <InlineFeedback tone="error" message={error} />}
+        {savedMessage && <InlineFeedback tone="success" message={savedMessage} />}
 
-        <button
-          type="submit"
-          disabled={isSaving}
-          className="rounded bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={isSaving}>
           {isSaving ? "Saving..." : "Save changes"}
-        </button>
+        </Button>
       </form>
     </div>
   )

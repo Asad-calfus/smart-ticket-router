@@ -15,9 +15,11 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import settings
+from app.models.enums import AssignedTeam, TicketCategory, TicketPriority
 from app.models import Ticket
 from app.schemas.ticket import RoutingResult
 from app.services import routing_service
+from app.services.context_service import build_customer_context
 
 
 def _route(client, customer_id: int, message: str, **kwargs):
@@ -81,8 +83,36 @@ def test_broken_message_returns_needs_clarification_with_questions(agent_client)
     response = _route(agent_client, 5, "broken")
     body = response.json()
     assert body["category"] == "Needs Clarification"
+    assert body["priority"] == "Low"
+    assert body["assigned_team"] == "General Support"
     assert body["needs_human_review"] is True
     assert len(body["clarification_questions"]) >= 1
+
+
+def test_numeric_only_message_is_always_low_priority_even_with_high_priority_customer_context(db_session):
+    # Customer 1 has both an inactive-access product and an active incident.
+    # Neither is relevant when the message is only an unexplained number.
+    context = build_customer_context(db_session, 1)
+    unsafe_model_result = RoutingResult(
+        category=TicketCategory.NEEDS_CLARIFICATION,
+        priority=TicketPriority.HIGH,
+        assigned_team=AssignedTeam.GENERAL_SUPPORT,
+        reasoning="The numeric reference needs clarification.",
+        confidence=0.25,
+        needs_human_review=True,
+        clarification_questions=["What does this number refer to?"],
+    )
+
+    safe_result = routing_service.apply_backend_safeguards(unsafe_model_result, "3443243", context)
+
+    assert safe_result.category == TicketCategory.NEEDS_CLARIFICATION
+    assert safe_result.priority == TicketPriority.LOW
+    assert safe_result.assigned_team == AssignedTeam.GENERAL_SUPPORT
+    assert safe_result.needs_human_review is True
+
+
+def test_short_but_actionable_security_message_is_not_treated_as_vague():
+    assert routing_service._is_vague("account hacked") is False
 
 
 # --- Ambiguous ticket gives defensible reasoning -----------------------------

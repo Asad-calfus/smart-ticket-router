@@ -22,26 +22,29 @@ export function AuditLogPage() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-slate-800">Audit Log</h2>
+      <h2 className="text-lg font-semibold text-foreground">Audit Log</h2>
+      <p className="mt-1 text-sm text-muted-foreground">A record of administrative actions taken across the workspace.</p>
 
       <div className="mt-4">
         {isLoading && <LoadingSkeleton rows={6} />}
         {!isLoading && error && <ErrorState message={error} onRetry={load} />}
-        {!isLoading && !error && events.length === 0 && <EmptyState title="No audit events yet" />}
+        {!isLoading && !error && events.length === 0 && (
+          <EmptyState title="No audit events yet" description="Administrative actions will appear here as they happen." />
+        )}
         {!isLoading && !error && events.length > 0 && (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-border rounded-md border border-border bg-surface">
             {events.map((event) => (
-              <li key={event.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-700">{event.action}</span>
-                  <span className="text-xs text-slate-400">{new Date(event.created_at).toLocaleString()}</span>
+              <li key={event.id} className="p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">{event.action}</span>
+                  <span className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Actor: {event.actor_email ?? "system"}
                   {event.target_type && ` · Target: ${event.target_type}${event.target_id ? ` #${event.target_id}` : ""}`}
                 </p>
                 {event.event_metadata && (
-                  <pre className="mt-1 overflow-x-auto rounded bg-slate-50 p-2 text-xs text-slate-500">
+                  <pre className="mt-2 overflow-x-auto rounded-md bg-surface-2 p-2 text-xs text-muted-foreground">
                     {JSON.stringify(event.event_metadata, null, 2)}
                   </pre>
                 )}

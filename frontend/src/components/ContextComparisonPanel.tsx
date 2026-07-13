@@ -2,6 +2,8 @@ import { useState } from "react"
 import { api, ApiError } from "../services/api"
 import type { RoutingResult } from "../types"
 import { PriorityBadge } from "./Badge"
+import { Button } from "./ui/Button"
+import { InlineFeedback } from "./ui/Toast"
 
 interface ContextComparisonPanelProps {
   customerId: number
@@ -16,15 +18,15 @@ interface ComparisonState {
 
 function ResultColumn({ title, result }: { title: string; result: RoutingResult }) {
   return (
-    <div className="flex-1 rounded-md border border-slate-200 bg-white p-3">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+    <div className="flex-1 rounded-md border border-border bg-surface p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{result.category}</span>
+        <span className="rounded bg-surface-2 px-2 py-0.5 text-xs font-medium text-foreground">{result.category}</span>
         <PriorityBadge priority={result.priority} />
       </div>
-      <p className="mt-1 text-xs text-slate-600">{result.assigned_team}</p>
-      <p className="mt-2 text-xs text-slate-600">{result.reasoning}</p>
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-1 text-xs text-muted-foreground">{result.assigned_team}</p>
+      <p className="mt-2 text-xs text-muted-foreground">{result.reasoning}</p>
+      <p className="mt-2 text-xs text-muted-foreground">
         Evidence used: {result.context_used.similar_ticket_ids.length} similar tickets,{" "}
         {result.context_used.knowledge_document_ids.length} docs, {result.context_used.active_incident_ids.length}{" "}
         incidents
@@ -55,25 +57,24 @@ export function ContextComparisonPanel({ customerId, message, ticketId }: Contex
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="flex items-center justify-between">
+    <div className="rounded-lg border border-border bg-surface-2 p-3">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-slate-700">Context Comparison Demo</h3>
-          <p className="text-xs text-slate-500">
+          <h3 className="text-sm font-semibold text-foreground">Context Comparison Demo</h3>
+          <p className="text-xs text-muted-foreground">
             See how customer profile, incidents and history change the routing decision.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={runComparison}
-          disabled={isLoading}
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-        >
+        <Button variant="secondary" size="sm" onClick={runComparison} disabled={isLoading}>
           {isLoading ? "Comparing..." : "Route Without vs With Context"}
-        </button>
+        </Button>
       </div>
 
-      {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
+      {error && (
+        <div className="mt-2">
+          <InlineFeedback tone="error" message={error} />
+        </div>
+      )}
 
       {comparison && (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">

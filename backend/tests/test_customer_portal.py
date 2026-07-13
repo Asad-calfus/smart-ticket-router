@@ -41,17 +41,24 @@ def test_profile_update_ignores_unwritable_fields_even_if_smuggled_in_request(cu
     assert after["company"] == "Smuggled Co"  # the actually-writable field did change
 
 
-def test_customer_can_create_a_ticket_and_it_gets_routed(customer_client):
+from app.services import customer_portal_service
+
+
+def test_customer_can_create_a_ticket_immediately_and_schedule_routing(customer_client, monkeypatch):
+    routed_ticket_ids = []
+    monkeypatch.setattr(customer_portal_service, "route_created_ticket", routed_ticket_ids.append)
     csrf = customer_client.cookies.get("csrf_token")
     response = customer_client.post(
         "/api/my/tickets",
         headers={"X-CSRF-Token": csrf},
         json={"message": "My dashboard has been showing a blank screen since this morning."},
     )
-    assert response.status_code == 200
+    assert response.status_code == 202
     body = response.json()
-    assert body["category"] is not None
-    assert body["priority"] is not None
+    assert body["status"] == "Open"
+    assert body["category"] is None
+    assert body["priority"] is None
+    assert routed_ticket_ids == [body["id"]]
     # Internal AI evidence fields must never appear here.
     assert "reasoning" not in body
     assert "confidence" not in body
@@ -66,7 +73,7 @@ def test_ticket_create_request_cannot_smuggle_a_different_customer_id(customer_c
         headers={"X-CSRF-Token": csrf},
         json={"message": "Attempting to impersonate another customer.", "customer_id": 999},
     )
-    assert response.status_code == 200
+    assert response.status_code == 202
     ticket_id = response.json()["id"]
 
     my_tickets = customer_client.get("/api/my/tickets").json()

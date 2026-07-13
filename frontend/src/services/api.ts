@@ -8,7 +8,6 @@ import type {
   Customer,
   CustomerDetail,
   GenericMessage,
-  Incident,
   LoginRequest,
   MetricsSummary,
   MyProfile,
@@ -28,7 +27,9 @@ import type {
   TicketRouteResponse,
 } from "../types"
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"
+// Empty by default so local development uses Vite's same-origin `/api` proxy.
+// Production deployments can still provide an explicit API origin.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ""
 
 export class ApiError extends Error {
   status: number
@@ -158,7 +159,6 @@ export const api = {
   getTicketEvidence: (ticketId: number) => request<RoutingEvidenceRead>(`/api/tickets/${ticketId}/evidence`),
   getAgentRoster: () => request<AgentRosterItem[]>("/api/tickets/agents/roster"),
 
-  getActiveIncidents: () => request<Incident[]>("/api/incidents/active"),
   getMetricsSummary: () => request<MetricsSummary>("/api/metrics/summary"),
 
   // --- Admin ------------------------------------------------------------------

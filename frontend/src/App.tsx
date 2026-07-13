@@ -4,6 +4,7 @@ import { AgentLayout } from "./components/AgentLayout"
 import { CustomerLayout } from "./components/CustomerLayout"
 import { ProtectedRoute } from "./components/ProtectedRoute"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import { ThemeProvider } from "./contexts/ThemeContext"
 import { AcceptInvitationPage } from "./pages/auth/AcceptInvitationPage"
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage"
 import { LoginPage } from "./pages/auth/LoginPage"
@@ -71,9 +72,11 @@ function AppRoutes() {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   )
 }

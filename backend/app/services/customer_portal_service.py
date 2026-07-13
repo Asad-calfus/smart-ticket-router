@@ -4,16 +4,21 @@ the client supplies — so a customer can never read or act on another
 customer's data by passing a different id in a request body/query.
 """
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.db.session import SessionLocal
 from app.models import Customer, CustomerProfile, Ticket, User
 from app.models.enums import TicketStatus
 from app.schemas.customer_portal import MyProfileRead, MyProfileUpdate, MyTicketCreate, MyTicketRead
 from app.schemas.ticket import TicketRouteRequest
 from app.services import routing_service
 from app.services.ticket_service import get_ticket_or_404
+
+logger = logging.getLogger("app")
 
 
 def _get_profile_and_customer(db: Session, user: User) -> tuple[CustomerProfile, Customer]:
@@ -79,11 +84,53 @@ def _to_my_ticket_read(ticket: Ticket) -> MyTicketRead:
 
 
 def create_my_ticket(db: Session, user: User, payload: MyTicketCreate) -> MyTicketRead:
+    """Persist a customer ticket immediately; AI routing happens separately.
+
+    Keeping creation separate from routing means the customer gets a ticket ID
+    without waiting for the embedding and LLM network calls.
+    """
     _, customer = _get_profile_and_customer(db, user)
-    route_payload = TicketRouteRequest(customer_id=customer.id, message=payload.message, channel=payload.channel)
-    result = routing_service.route_ticket_request(db, route_payload)
-    ticket = get_ticket_or_404(db, result.ticket_id)
+    ticket = Ticket(
+        customer_id=customer.id,
+        message=payload.message.strip(),
+        channel=payload.channel,
+        status=TicketStatus.OPEN,
+    )
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
     return _to_my_ticket_read(ticket)
+
+
+def route_created_ticket(ticket_id: int) -> None:
+    """Route a newly-created customer ticket after the HTTP response is sent.
+
+    Background tasks must never reuse the request-scoped SQLAlchemy session,
+    which is closed once the response finishes, so this function owns a fresh
+    session for its entire lifetime.
+    """
+    db = SessionLocal()
+    try:
+        ticket = db.get(Ticket, ticket_id)
+        if ticket is None:
+            logger.warning("Background routing skipped: ticket %s no longer exists.", ticket_id)
+            return
+        # Idempotency guard: a retry or an agent action must not route the same
+        # ticket twice once a category has already been persisted.
+        if ticket.category is not None:
+            return
+        payload = TicketRouteRequest(
+            customer_id=ticket.customer_id,
+            message=ticket.message,
+            channel=ticket.channel,
+            ticket_id=ticket.id,
+        )
+        routing_service.route_ticket_request(db, payload)
+    except Exception:  # noqa: BLE001 - background failures must be logged, never crash the server
+        db.rollback()
+        logger.exception("Background routing failed for ticket %s; it remains Open for agent triage.", ticket_id)
+    finally:
+        db.close()
 
 
 def list_my_tickets(db: Session, user: User) -> list[MyTicketRead]:

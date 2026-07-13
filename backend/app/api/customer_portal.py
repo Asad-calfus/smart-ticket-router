@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_customer
@@ -29,11 +29,16 @@ def update_profile(
     return customer_portal_service.update_my_profile(db, user, payload)
 
 
-@router.post("/api/my/tickets", response_model=MyTicketRead)
+@router.post("/api/my/tickets", response_model=MyTicketRead, status_code=status.HTTP_202_ACCEPTED)
 def create_my_ticket(
-    payload: MyTicketCreate, user: User = Depends(require_customer), db: Session = Depends(get_db)
+    payload: MyTicketCreate,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(require_customer),
+    db: Session = Depends(get_db),
 ) -> MyTicketRead:
-    return customer_portal_service.create_my_ticket(db, user, payload)
+    ticket = customer_portal_service.create_my_ticket(db, user, payload)
+    background_tasks.add_task(customer_portal_service.route_created_ticket, ticket.id)
+    return ticket
 
 
 @router.get("/api/my/tickets", response_model=list[MyTicketRead])

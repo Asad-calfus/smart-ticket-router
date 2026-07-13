@@ -111,4 +111,46 @@ describe("TicketQueue", () => {
     await user.click(screen.getByText("Premium Dashboard is not opening."))
     expect(onSelectTicket).toHaveBeenCalledWith(1)
   })
+
+  it("searches tickets by customer, message or ticket id", async () => {
+    const user = userEvent.setup()
+    render(
+      <TicketQueue
+        tickets={[sampleTicketListItem]}
+        filter="all"
+        onFilterChange={vi.fn()}
+        selectedTicketId={null}
+        onSelectTicket={vi.fn()}
+        isLoading={false}
+        error={null}
+        onRetry={vi.fn()}
+      />,
+    )
+
+    await user.type(screen.getByRole("searchbox", { name: "Search tickets" }), "no match")
+    expect(screen.getByText("No tickets match your search")).toBeInTheDocument()
+    await user.clear(screen.getByRole("searchbox", { name: "Search tickets" }))
+    await user.type(screen.getByRole("searchbox", { name: "Search tickets" }), "Ananya")
+    expect(screen.getByText("Premium Dashboard is not opening.")).toBeInTheDocument()
+  })
+
+  it("offers a manual refresh button", async () => {
+    const user = userEvent.setup()
+    const onRetry = vi.fn()
+    render(
+      <TicketQueue
+        tickets={[]}
+        filter="all"
+        onFilterChange={vi.fn()}
+        selectedTicketId={null}
+        onSelectTicket={vi.fn()}
+        isLoading={false}
+        error={null}
+        onRetry={onRetry}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
 })

@@ -37,7 +37,13 @@ export type IncidentSeverity = "Critical" | "High" | "Medium" | "Low"
 
 export type IncidentStatus = "Active" | "Monitoring" | "Resolved"
 
-export type TicketQueueFilter = "all" | "unassigned" | "high_priority" | "needs_human_review" | "active_incident"
+export type TicketQueueFilter =
+  | "all"
+  | "new_tickets"
+  | "unassigned"
+  | "high_priority"
+  | "needs_human_review"
+  | "active_incident"
 
 export interface CustomerProduct {
   product_id: number

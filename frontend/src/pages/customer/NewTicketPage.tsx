@@ -1,6 +1,11 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { Textarea } from "../../components/ui/Input"
+import { Button } from "../../components/ui/Button"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { api, ApiError } from "../../services/api"
+
+const MESSAGE_MAX_LENGTH = 4000
 
 export function NewTicketPage() {
   const navigate = useNavigate()
@@ -24,30 +29,31 @@ export function NewTicketPage() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-slate-800">New Support Ticket</h2>
-      <p className="mt-1 text-sm text-slate-500">Describe your issue and we'll route it to the right team.</p>
+      <h2 className="text-lg font-semibold text-foreground">New Support Ticket</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Describe your issue. We will create the ticket immediately and route it with AI in the background.
+      </p>
 
-      <form onSubmit={handleSubmit} className="mt-4 max-w-lg space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-        <label className="block text-xs font-medium text-slate-600">
+      <form onSubmit={handleSubmit} className="mt-4 max-w-lg space-y-3 rounded-lg border border-border bg-surface p-4">
+        <label htmlFor="ticket-message" className="block text-xs font-medium text-muted-foreground">
           Message
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={5}
-            maxLength={4000}
-            required
-            placeholder="What's going on?"
-            className="mt-1 w-full rounded border border-slate-300 p-2 text-sm"
-          />
         </label>
-        {error && <p className="text-xs font-medium text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={isSubmitting || !message.trim()}
-          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isSubmitting ? "Submitting..." : "Submit Ticket"}
-        </button>
+        <Textarea
+          id="ticket-message"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={5}
+          maxLength={MESSAGE_MAX_LENGTH}
+          required
+          placeholder="What's going on?"
+        />
+        <p className="-mt-2 text-right text-xs text-muted-foreground">
+          {message.length} / {MESSAGE_MAX_LENGTH}
+        </p>
+        {error && <InlineFeedback tone="error" message={error} />}
+        <Button type="submit" variant="primary" disabled={isSubmitting || !message.trim()}>
+          {isSubmitting ? "Creating ticket..." : "Submit Ticket"}
+        </Button>
       </form>
     </div>
   )

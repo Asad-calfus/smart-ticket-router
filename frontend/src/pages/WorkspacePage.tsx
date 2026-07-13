@@ -19,6 +19,14 @@ import type {
   TicketRead,
 } from "../types"
 
+type MobilePane = "queue" | "conversation" | "customer"
+
+const MOBILE_PANES: { key: MobilePane; label: string }[] = [
+  { key: "queue", label: "Queue" },
+  { key: "conversation", label: "Conversation" },
+  { key: "customer", label: "Customer 360" },
+]
+
 export function WorkspacePage() {
   const { user } = useAuth()
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -41,6 +49,11 @@ export function WorkspacePage() {
   const [customerLoading, setCustomerLoading] = useState(false)
   const [customerError, setCustomerError] = useState<string | null>(null)
 
+  // Which pane is visible on narrow (< lg) viewports, where the three columns
+  // can't all fit side by side. Purely a presentation concern — desktop always
+  // shows all three columns regardless of this value.
+  const [mobilePane, setMobilePane] = useState<MobilePane>("conversation")
+
   // Evidence for the currently selected ticket: freshly-routed results this
   // session take priority; otherwise fall back to what's persisted in the DB
   // (see GET /api/tickets/{id}/evidence) — both are equally "real" evidence.
@@ -49,15 +62,23 @@ export function WorkspacePage() {
   const [isRouting, setIsRouting] = useState(false)
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
 
-  const loadTickets = useCallback(() => {
-    setTicketsLoading(true)
-    setTicketsError(null)
+  useEffect(() => {
+    setActionError(null)
+    setActionSuccess(null)
+  }, [selectedTicketId])
+
+  const loadTickets = useCallback((showLoading = true) => {
+    if (showLoading) setTicketsLoading(true)
+    if (showLoading) setTicketsError(null)
     api
       .getTickets(filter)
       .then(setTickets)
       .catch((err) => setTicketsError(err instanceof ApiError ? err.message : "Could not load tickets."))
-      .finally(() => setTicketsLoading(false))
+      .finally(() => {
+        if (showLoading) setTicketsLoading(false)
+      })
   }, [filter])
 
   useEffect(() => {
@@ -67,6 +88,8 @@ export function WorkspacePage() {
 
   useEffect(() => {
     loadTickets()
+    const refreshTimer = window.setInterval(() => loadTickets(false), 5000)
+    return () => window.clearInterval(refreshTimer)
   }, [loadTickets])
 
   const loadTicketDetail = useCallback((ticketId: number) => {
@@ -133,6 +156,7 @@ export function WorkspacePage() {
     if (!selectedTicket) return
     setIsRouting(true)
     setActionError(null)
+    setActionSuccess(null)
     try {
       const result = await api.routeTicket({
         customer_id: selectedTicket.customer_id,
@@ -141,6 +165,7 @@ export function WorkspacePage() {
         ticket_id: selectedTicket.id,
       })
       setRoutingResults((prev) => ({ ...prev, [selectedTicket.id]: result }))
+      setActionSuccess("AI routing completed. Review the recommendation below.")
       refreshAfterMutation(selectedTicket.id)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not route this ticket.")
@@ -153,8 +178,10 @@ export function WorkspacePage() {
     if (!selectedTicket) return
     setIsSubmittingFeedback(true)
     setActionError(null)
+    setActionSuccess(null)
     try {
       await api.submitFeedback(selectedTicket.id, {})
+      setActionSuccess("Routing accepted. The ticket is now In Progress.")
       refreshAfterMutation(selectedTicket.id)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not save this feedback.")
@@ -171,6 +198,7 @@ export function WorkspacePage() {
     if (!selectedTicket) return
     setIsSubmittingFeedback(true)
     setActionError(null)
+    setActionSuccess(null)
     try {
       await api.submitFeedback(selectedTicket.id, {
         final_category: edits.category,
@@ -178,6 +206,7 @@ export function WorkspacePage() {
         final_assigned_team: edits.assignedTeam,
         feedback_note: "Edited by agent",
       })
+      setActionSuccess("Routing changes saved. The ticket is now In Progress.")
       refreshAfterMutation(selectedTicket.id)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not save this edit.")
@@ -190,8 +219,10 @@ export function WorkspacePage() {
     if (!selectedTicket) return
     setIsSubmittingFeedback(true)
     setActionError(null)
+    setActionSuccess(null)
     try {
       await api.submitFeedback(selectedTicket.id, { send_for_human_review: true })
+      setActionSuccess("Human review requested. The ticket status has been updated.")
       refreshAfterMutation(selectedTicket.id)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not send this ticket for review.")
@@ -203,8 +234,10 @@ export function WorkspacePage() {
   async function handleResolveTicket(resolution: string) {
     if (!selectedTicket) return
     setActionError(null)
+    setActionSuccess(null)
     try {
       await api.resolveTicket(selectedTicket.id, resolution)
+      setActionSuccess("Ticket resolved successfully.")
       refreshAfterMutation(selectedTicket.id)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not resolve this ticket.")
@@ -214,8 +247,10 @@ export function WorkspacePage() {
   async function handleSendMessage(body: string, messageType: "Agent Reply" | "Internal Note") {
     if (!selectedTicket) return
     setActionError(null)
+    setActionSuccess(null)
     try {
       await api.addTicketMessage(selectedTicket.id, body, messageType)
+      setActionSuccess(messageType === "Internal Note" ? "Internal note saved." : "Reply sent to the customer.")
       loadMessages(selectedTicket.id)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not send this message.")
@@ -225,8 +260,10 @@ export function WorkspacePage() {
   async function handleAssign(agentUserId: number) {
     if (!selectedTicket) return
     setActionError(null)
+    setActionSuccess(null)
     try {
       await api.assignTicket(selectedTicket.id, agentUserId)
+      setActionSuccess("Ticket assigned successfully.")
       refreshAfterMutation(selectedTicket.id)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not assign this ticket.")
@@ -236,6 +273,12 @@ export function WorkspacePage() {
   function handleNewTicketRouted(ticketId: number) {
     loadTickets()
     setSelectedTicketId(ticketId)
+    setMobilePane("conversation")
+  }
+
+  function handleSelectTicket(ticketId: number) {
+    setSelectedTicketId(ticketId)
+    setMobilePane("conversation")
   }
 
   const displayResult = selectedTicket
@@ -243,56 +286,86 @@ export function WorkspacePage() {
     : null
 
   return (
-    <div className="grid h-[calc(100vh-3rem)] grid-cols-[320px_1fr_320px]">
-      <div className="flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-xs text-slate-500">
-          <span>
+    <div className="flex h-[calc(100vh-3rem)] flex-col overflow-hidden bg-background">
+      <div className="flex items-center gap-1 border-b border-border bg-surface px-2 py-1.5 lg:hidden">
+        {MOBILE_PANES.map((pane) => (
+          <button
+            key={pane.key}
+            type="button"
+            onClick={() => setMobilePane(pane.key)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 ${
+              mobilePane === pane.key
+                ? "bg-accent-subtle text-accent"
+                : "text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            }`}
+          >
+            {pane.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        <div
+          className={`${
+            mobilePane === "queue" ? "flex" : "hidden"
+          } w-full flex-col overflow-hidden border-r border-border bg-surface lg:flex lg:w-[280px] lg:shrink-0`}
+        >
+          <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
             {user?.agent_display_name ?? user?.email} {user?.agent_team ? `· ${user.agent_team}` : ""}
-          </span>
+          </div>
+          <NewTicketForm customers={customers} onRouted={handleNewTicketRouted} />
+          <div className="flex-1 overflow-hidden">
+            <TicketQueue
+              tickets={tickets}
+              filter={filter}
+              onFilterChange={setFilter}
+              selectedTicketId={selectedTicketId}
+              onSelectTicket={handleSelectTicket}
+              isLoading={ticketsLoading}
+              error={ticketsError}
+              onRetry={loadTickets}
+            />
+          </div>
         </div>
-        <NewTicketForm customers={customers} onRouted={handleNewTicketRouted} />
-        <div className="flex-1 overflow-hidden">
-          <TicketQueue
-            tickets={tickets}
-            filter={filter}
-            onFilterChange={setFilter}
-            selectedTicketId={selectedTicketId}
-            onSelectTicket={setSelectedTicketId}
-            isLoading={ticketsLoading}
-            error={ticketsError}
-            onRetry={loadTickets}
+
+        <div className={`${mobilePane === "conversation" ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-hidden lg:flex`}>
+          <ConversationPanel
+            ticket={selectedTicket}
+            isLoading={ticketDetailLoading}
+            error={ticketDetailError}
+            onRetry={() => selectedTicketId && loadTicketDetail(selectedTicketId)}
+            messages={messages}
+            agentRoster={agentRoster}
+            onAssign={handleAssign}
+            onSendMessage={handleSendMessage}
+            routingResult={displayResult}
+            isRouting={isRouting}
+            isSubmittingFeedback={isSubmittingFeedback}
+            actionError={actionError}
+            actionSuccess={actionSuccess}
+            onRouteTicket={handleRouteTicket}
+            onAcceptRouting={handleAcceptRouting}
+            onEditRouting={handleEditRouting}
+            onSendForHumanReview={handleSendForHumanReview}
+            onResolveTicket={handleResolveTicket}
+          />
+        </div>
+
+        <div
+          className={`${
+            mobilePane === "customer" ? "flex" : "hidden"
+          } w-full flex-col overflow-hidden border-l border-border bg-surface lg:flex lg:w-[320px] lg:shrink-0`}
+        >
+          <Customer360
+            customer={customerDetail}
+            customerTickets={customerTickets}
+            aiEvidence={displayResult}
+            isLoading={customerLoading}
+            error={customerError}
+            onRetry={() => selectedTicket && loadCustomerData(selectedTicket.customer_id, selectedTicket.id)}
           />
         </div>
       </div>
-
-      <ConversationPanel
-        ticket={selectedTicket}
-        isLoading={ticketDetailLoading}
-        error={ticketDetailError}
-        onRetry={() => selectedTicketId && loadTicketDetail(selectedTicketId)}
-        messages={messages}
-        agentRoster={agentRoster}
-        onAssign={handleAssign}
-        onSendMessage={handleSendMessage}
-        routingResult={displayResult}
-        isRouting={isRouting}
-        isSubmittingFeedback={isSubmittingFeedback}
-        actionError={actionError}
-        onRouteTicket={handleRouteTicket}
-        onAcceptRouting={handleAcceptRouting}
-        onEditRouting={handleEditRouting}
-        onSendForHumanReview={handleSendForHumanReview}
-        onResolveTicket={handleResolveTicket}
-      />
-
-      <Customer360
-        customer={customerDetail}
-        customerTickets={customerTickets}
-        aiEvidence={displayResult}
-        isLoading={customerLoading}
-        error={customerError}
-        onRetry={() => selectedTicket && loadCustomerData(selectedTicket.customer_id, selectedTicket.id)}
-      />
     </div>
   )
 }

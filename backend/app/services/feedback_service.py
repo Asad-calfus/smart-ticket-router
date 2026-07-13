@@ -32,8 +32,12 @@ def record_feedback(db: Session, ticket_id: int, payload: TicketFeedbackCreate) 
     if payload.send_for_human_review:
         ticket.status = TicketStatus.NEEDS_HUMAN_REVIEW
         ticket.needs_human_review = True
-    elif ticket.status in (TicketStatus.OPEN, TicketStatus.ROUTED):
+    elif ticket.status != TicketStatus.RESOLVED:
+        # Accepting or correcting the recommendation means an agent has taken
+        # ownership of the routing decision, including when the AI originally
+        # requested human review.
         ticket.status = TicketStatus.IN_PROGRESS
+        ticket.needs_human_review = False
 
     db.commit()
     db.refresh(feedback)

@@ -1,38 +1,72 @@
+import { useState } from "react"
+import { Menu, X } from "lucide-react"
 import { NavLink, Outlet } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
+import { ThemeSwitcher } from "./ThemeSwitcher"
 
 function navClass({ isActive }: { isActive: boolean }) {
-  return `rounded px-3 py-1.5 text-sm font-medium ${isActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`
+  return `rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 ${
+    isActive ? "bg-accent-subtle text-accent" : "text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+  }`
 }
 
 export function CustomerLayout() {
   const { user, logout } = useAuth()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-4">
-        <h1 className="text-sm font-semibold text-slate-800">Support</h1>
-        <nav className="flex items-center gap-1">
-          <NavLink to="/my-tickets" className={navClass}>
-            My Tickets
-          </NavLink>
-          <NavLink to="/new-ticket" className={navClass}>
-            New Ticket
-          </NavLink>
-          <NavLink to="/profile" className={navClass}>
-            Profile
-          </NavLink>
-          <span className="mx-2 text-xs text-slate-400">{user?.email}</span>
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="rounded px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          >
-            Log out
-          </button>
-        </nav>
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-surface px-4">
+        <div className="flex h-12 items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen((open) => !open)}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-2 md:hidden"
+              aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+            >
+              {mobileNavOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            <h1 className="text-sm font-semibold text-foreground">Support</h1>
+          </div>
+          <nav className="hidden items-center gap-1 md:flex">
+            <NavLink to="/my-tickets" className={navClass}>
+              My Tickets
+            </NavLink>
+            <NavLink to="/new-ticket" className={navClass}>
+              New Ticket
+            </NavLink>
+            <NavLink to="/profile" className={navClass}>
+              Profile
+            </NavLink>
+          </nav>
+          <div className="flex items-center gap-3">
+            <ThemeSwitcher />
+            <span className="hidden text-xs text-muted-foreground sm:inline">{user?.email}</span>
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-2 hover:text-foreground"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+        {mobileNavOpen && (
+          <nav className="flex flex-col gap-1 border-t border-border py-2 md:hidden">
+            <NavLink to="/my-tickets" className={navClass} onClick={() => setMobileNavOpen(false)}>
+              My Tickets
+            </NavLink>
+            <NavLink to="/new-ticket" className={navClass} onClick={() => setMobileNavOpen(false)}>
+              New Ticket
+            </NavLink>
+            <NavLink to="/profile" className={navClass} onClick={() => setMobileNavOpen(false)}>
+              Profile
+            </NavLink>
+          </nav>
+        )}
       </header>
-      <main className="mx-auto max-w-3xl p-6">
+      <main className="mx-auto max-w-3xl p-4 sm:p-6">
         <Outlet />
       </main>
     </div>

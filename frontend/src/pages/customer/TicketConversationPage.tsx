@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
+import { Info } from "lucide-react"
 import { PriorityBadge, StatusBadge } from "../../components/Badge"
 import { ErrorState, LoadingSkeleton } from "../../components/StateViews"
+import { Textarea } from "../../components/ui/Input"
+import { Button } from "../../components/ui/Button"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { api, ApiError } from "../../services/api"
 import type { MyTicket, TicketMessage } from "../../types"
 
@@ -30,6 +34,22 @@ export function TicketConversationPage() {
   }
 
   useEffect(load, [id])
+
+  useEffect(() => {
+    if (!ticket || ticket.status !== "Open" || ticket.category !== null) return
+
+    const routingPoll = window.setInterval(() => {
+      api
+        .getMyTicket(id)
+        .then(setTicket)
+        .catch(() => {
+          // A temporary polling failure should not replace the ticket page
+          // with an error; the next poll or manual navigation can recover.
+        })
+    }, 2000)
+
+    return () => window.clearInterval(routingPoll)
+  }, [id, ticket])
 
   async function handleReply(event: React.FormEvent) {
     event.preventDefault()
@@ -67,82 +87,90 @@ export function TicketConversationPage() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800">Ticket #{ticket.id}</h2>
+        <h2 className="text-lg font-semibold text-foreground">Ticket #{ticket.id}</h2>
         <StatusBadge status={ticket.status} />
       </div>
       <div className="mt-1 flex items-center gap-2">
         <PriorityBadge priority={ticket.priority} />
-        {ticket.category && <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{ticket.category}</span>}
+        {ticket.category && (
+          <span className="rounded bg-surface-2 px-2 py-0.5 text-xs text-muted-foreground">{ticket.category}</span>
+        )}
       </div>
 
-      <div className="mt-4 space-y-2 rounded-lg border border-slate-200 bg-white p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Original message</p>
-        <p className="whitespace-pre-wrap text-sm text-slate-700">{ticket.message}</p>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`rounded-lg border p-3 text-sm ${
-              message.message_type === "Customer Reply"
-                ? "ml-8 border-blue-200 bg-blue-50"
-                : "mr-8 border-slate-200 bg-white"
-            }`}
-          >
-            <p className="text-xs font-medium text-slate-500">
-              {message.message_type === "Customer Reply" ? "You" : message.author_label} &middot;{" "}
-              {new Date(message.created_at).toLocaleString()}
-            </p>
-            <p className="mt-1 text-slate-700">{message.body}</p>
+      {ticket.status === "Open" && ticket.category === null && (
+        <div role="status" className="mt-4 flex items-start gap-2 rounded-md border border-accent-subtle bg-accent-subtle p-3 text-sm text-accent">
+          <Info size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Ticket submitted successfully</p>
+            <p className="mt-1 text-xs">AI routing is in progress. This page updates automatically.</p>
           </div>
-        ))}
-      </div>
-
-      {ticket.resolution && (
-        <div className="mt-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Resolution</p>
-          <p className="mt-1">{ticket.resolution}</p>
         </div>
       )}
 
-      {error && <p className="mt-3 text-xs font-medium text-red-600">{error}</p>}
+      <div className="mt-4 space-y-2 rounded-lg border border-border bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Original message</p>
+        <p className="whitespace-pre-wrap text-sm text-foreground">{ticket.message}</p>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {messages.map((message) => {
+          const isCustomer = message.message_type === "Customer Reply"
+          return (
+            <div
+              key={message.id}
+              className={`max-w-[85%] rounded-lg border p-3 text-sm ${
+                isCustomer ? "ml-auto border-accent-subtle bg-accent-subtle" : "mr-auto border-border bg-surface"
+              }`}
+            >
+              <p className="text-xs font-medium text-muted-foreground">
+                {isCustomer ? "You" : message.author_label} &middot; {new Date(message.created_at).toLocaleString()}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-foreground">{message.body}</p>
+            </div>
+          )
+        })}
+      </div>
+
+      {ticket.resolution && (
+        <div className="mt-4 rounded-md border border-success-border bg-success-bg p-3 text-sm text-success">
+          <p className="text-xs font-semibold uppercase tracking-wide">Resolution</p>
+          <p className="mt-1 whitespace-pre-wrap">{ticket.resolution}</p>
+        </div>
+      )}
+
+      {error && <div className="mt-3"><InlineFeedback tone="error" message={error} /></div>}
 
       {ticket.status === "Resolved" ? (
-        <div className="mt-4 rounded-lg border border-slate-200 p-3">
-          <p className="text-sm font-semibold text-slate-700">Not fixed? Reopen this ticket</p>
-          <textarea
+        <div className="mt-4 rounded-lg border border-border bg-surface p-3">
+          <p className="text-sm font-semibold text-foreground">Not fixed? Reopen this ticket</p>
+          <Textarea
             value={reopenReason}
             onChange={(e) => setReopenReason(e.target.value)}
             rows={2}
             placeholder="What's still wrong?"
-            className="mt-2 w-full rounded border border-slate-300 p-2 text-sm"
+            className="mt-2"
           />
-          <button
+          <Button
             type="button"
+            variant="danger"
             onClick={handleReopen}
             disabled={isSubmitting || !reopenReason.trim()}
-            className="mt-2 rounded bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
+            className="mt-2"
           >
             Reopen Ticket
-          </button>
+          </Button>
         </div>
       ) : (
-        <form onSubmit={handleReply} className="mt-4 rounded-lg border border-slate-200 p-3">
-          <textarea
+        <form onSubmit={handleReply} className="mt-4 rounded-lg border border-border bg-surface p-3">
+          <Textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             rows={3}
             placeholder="Write a reply..."
-            className="w-full rounded border border-slate-300 p-2 text-sm"
           />
-          <button
-            type="submit"
-            disabled={isSubmitting || !reply.trim()}
-            className="mt-2 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={isSubmitting || !reply.trim()} className="mt-2">
             Send Reply
-          </button>
+          </Button>
         </form>
       )}
     </div>

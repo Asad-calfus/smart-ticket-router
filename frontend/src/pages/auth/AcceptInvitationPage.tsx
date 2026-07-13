@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { AuthCard, FormField, inputClassName, primaryButtonClassName } from "../../components/AuthCard"
+import { AuthCard, FormField } from "../../components/AuthCard"
+import { Input, PasswordInput } from "../../components/ui/Input"
+import { Button } from "../../components/ui/Button"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { useAuth } from "../../contexts/AuthContext"
 import { api, ApiError } from "../../services/api"
 
@@ -32,7 +35,7 @@ export function AcceptInvitationPage() {
   if (!token) {
     return (
       <AuthCard title="Accept invitation">
-        <p className="text-sm text-red-600">This link is missing its invitation token.</p>
+        <InlineFeedback tone="error" message="This link is missing its invitation token." />
       </AuthCard>
     )
   }
@@ -41,34 +44,26 @@ export function AcceptInvitationPage() {
     <AuthCard title="Accept your invitation" subtitle="Set your display name and password to finish joining.">
       <form onSubmit={handleSubmit} noValidate>
         <FormField label="Display name" htmlFor="display-name">
-          <input
-            id="display-name"
-            required
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className={inputClassName}
-          />
+          <Input id="display-name" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </FormField>
         <FormField label="Password" htmlFor="password">
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             required
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={inputClassName}
           />
         </FormField>
         {error && (
-          <p className="mb-3 text-xs font-medium text-red-600" role="alert">
-            {error}
-          </p>
+          <div className="mb-3">
+            <InlineFeedback tone="error" message={error} />
+          </div>
         )}
-        <button type="submit" disabled={isSubmitting} className={primaryButtonClassName}>
+        <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full">
           {isSubmitting ? "Joining..." : "Accept & continue"}
-        </button>
+        </Button>
       </form>
     </AuthCard>
   )

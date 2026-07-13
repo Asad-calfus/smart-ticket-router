@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AuthCard, FormField, inputClassName, primaryButtonClassName } from "../../components/AuthCard"
+import { AuthCard, FormField } from "../../components/AuthCard"
+import { Input } from "../../components/ui/Input"
+import { Button } from "../../components/ui/Button"
+import { InlineFeedback } from "../../components/ui/Toast"
 import { api, ApiError } from "../../services/api"
 
 export function ForgotPasswordPage() {
@@ -26,31 +29,30 @@ export function ForgotPasswordPage() {
   return (
     <AuthCard title="Forgot password" subtitle="We'll send a reset link if the email exists.">
       {message ? (
-        <p className="text-sm text-slate-700">{message}</p>
+        <InlineFeedback tone="success" message={message} />
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           <FormField label="Email" htmlFor="email">
-            <input
+            <Input
               id="email"
               type="email"
               autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={inputClassName}
             />
           </FormField>
           {error && (
-            <p className="mb-3 text-xs font-medium text-red-600" role="alert">
-              {error}
-            </p>
+            <div className="mb-3">
+              <InlineFeedback tone="error" message={error} />
+            </div>
           )}
-          <button type="submit" disabled={isSubmitting} className={primaryButtonClassName}>
+          <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full">
             {isSubmitting ? "Sending..." : "Send reset link"}
-          </button>
+          </Button>
         </form>
       )}
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-muted-foreground">
         <Link to="/login" className="hover:underline">
           Back to login
         </Link>

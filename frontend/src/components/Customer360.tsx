@@ -2,6 +2,7 @@ import { useState } from "react"
 import type { CustomerDetail, RoutingResult, TicketRead } from "../types"
 import { PriorityBadge, StatusBadge } from "./Badge"
 import { EmptyState, ErrorState, LoadingSkeleton } from "./StateViews"
+import { SectionHeader } from "./ui/Tabs"
 
 type Tab = "profile" | "products" | "incidents" | "history" | "evidence"
 
@@ -27,7 +28,7 @@ export function Customer360({ customer, customerTickets, aiEvidence, isLoading, 
 
   if (isLoading) {
     return (
-      <div className="h-full border-l border-slate-200 bg-white">
+      <div className="h-full bg-surface">
         <LoadingSkeleton rows={5} />
       </div>
     )
@@ -35,7 +36,7 @@ export function Customer360({ customer, customerTickets, aiEvidence, isLoading, 
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center border-l border-slate-200 bg-white p-4">
+      <div className="flex h-full items-center justify-center bg-surface p-4">
         <ErrorState message={error} onRetry={onRetry} />
       </div>
     )
@@ -43,27 +44,29 @@ export function Customer360({ customer, customerTickets, aiEvidence, isLoading, 
 
   if (!customer) {
     return (
-      <div className="flex h-full items-center justify-center border-l border-slate-200 bg-white">
+      <div className="flex h-full items-center justify-center bg-surface">
         <EmptyState title="No customer selected" description="Select a ticket to see the customer's 360 view." />
       </div>
     )
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto border-l border-slate-200 bg-white">
-      <div className="border-b border-slate-200 p-4">
-        <h2 className="text-sm font-semibold text-slate-800">{customer.name}</h2>
-        <p className="text-xs text-slate-500">{customer.email}</p>
+    <div className="flex h-full flex-col overflow-y-auto bg-surface">
+      <div className="border-b border-border p-4">
+        <h2 className="text-sm font-semibold text-foreground">{customer.name}</h2>
+        <p className="text-xs text-muted-foreground">{customer.email}</p>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 p-2">
+      <div className="flex flex-wrap gap-1 border-b border-border p-2">
         {TABS.map((tab) => (
           <button
             key={tab.value}
             type="button"
             onClick={() => setActiveTab(tab.value)}
-            className={`rounded px-2 py-1 text-xs font-medium ${
-              activeTab === tab.value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 ${
+              activeTab === tab.value
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-surface-2 hover:text-foreground"
             }`}
           >
             {tab.label}
@@ -73,95 +76,132 @@ export function Customer360({ customer, customerTickets, aiEvidence, isLoading, 
 
       <div className="flex-1 p-4 text-sm">
         {activeTab === "profile" && (
-          <dl className="space-y-2">
-            <Field label="Tier" value={customer.tier} />
-            <Field label="Location" value={customer.location} />
-            <Field label="Preferred language" value={customer.preferred_language} />
-            <Field label="Customer since" value={new Date(customer.created_at).toLocaleDateString()} />
-          </dl>
+          <div className="space-y-4">
+            <div>
+              <SectionHeader title="Identity" />
+              <dl className="mt-2 space-y-2">
+                <Field label="Tier" value={customer.tier} />
+                <Field label="Customer since" value={new Date(customer.created_at).toLocaleDateString()} />
+              </dl>
+            </div>
+            <div className="border-t border-border pt-4">
+              <SectionHeader title="Location & Language" />
+              <dl className="mt-2 space-y-2">
+                <Field label="Location" value={customer.location} />
+                <Field label="Preferred language" value={customer.preferred_language} />
+              </dl>
+            </div>
+          </div>
         )}
 
-        {activeTab === "products" &&
-          (customer.products.length === 0 ? (
-            <EmptyState title="No products on file" />
-          ) : (
-            <ul className="space-y-2">
-              {customer.products.map((product) => (
-                <li key={product.product_id} className="rounded-md border border-slate-200 p-2.5">
-                  <p className="text-sm font-medium text-slate-800">{product.product_name}</p>
-                  <p className="text-xs text-slate-500">
-                    Plan: {product.plan_name} &middot; Expires:{" "}
-                    {product.expiry_date ? new Date(product.expiry_date).toLocaleDateString() : "n/a"}
-                  </p>
-                  <div className="mt-1 flex gap-1.5">
-                    <StatusPill label={`Subscription: ${product.subscription_status}`} tone={product.subscription_status} />
-                    <StatusPill label={`Access: ${product.access_status}`} tone={product.access_status} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ))}
+        {activeTab === "products" && (
+          <div>
+            <SectionHeader title="Products & Access" />
+            {customer.products.length === 0 ? (
+              <div className="mt-2">
+                <EmptyState title="No products on file" />
+              </div>
+            ) : (
+              <ul className="mt-2 divide-y divide-border">
+                {customer.products.map((product) => (
+                  <li key={product.product_id} className="py-3 first:pt-0">
+                    <p className="text-sm font-medium text-foreground">{product.product_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Plan: {product.plan_name} &middot; Expires:{" "}
+                      {product.expiry_date ? new Date(product.expiry_date).toLocaleDateString() : "n/a"}
+                    </p>
+                    <div className="mt-1 flex gap-1.5">
+                      <StatusPill label={`Subscription: ${product.subscription_status}`} tone={product.subscription_status} />
+                      <StatusPill label={`Access: ${product.access_status}`} tone={product.access_status} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
-        {activeTab === "incidents" &&
-          (customer.active_incidents.length === 0 ? (
-            <EmptyState title="No active incidents" description="Nothing is currently affecting this customer." />
-          ) : (
-            <ul className="space-y-2">
-              {customer.active_incidents.map((incident) => (
-                <li key={incident.id} className="rounded-md border border-red-200 bg-red-50/40 p-2.5">
-                  <p className="text-sm font-medium text-slate-800">{incident.title}</p>
-                  <p className="text-xs text-slate-500">{incident.description}</p>
-                  <p className="mt-1 text-xs font-medium text-red-700">
-                    {incident.severity} &middot; {incident.status} &middot; {incident.affected_location ?? "All regions"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ))}
+        {activeTab === "incidents" && (
+          <div>
+            <SectionHeader title="Active Incidents" />
+            {customer.active_incidents.length === 0 ? (
+              <div className="mt-2">
+                <EmptyState title="No active incidents" description="Nothing is currently affecting this customer." />
+              </div>
+            ) : (
+              <ul className="mt-2 divide-y divide-border">
+                {customer.active_incidents.map((incident) => (
+                  <li key={incident.id} className="border-l-2 border-review-border py-3 pl-3 first:pt-0">
+                    <p className="text-sm font-medium text-foreground">{incident.title}</p>
+                    <p className="text-xs text-muted-foreground">{incident.description}</p>
+                    <p className="mt-1 text-xs font-medium text-review">
+                      {incident.severity} &middot; {incident.status} &middot; {incident.affected_location ?? "All regions"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
-        {activeTab === "history" &&
-          (customerTickets.length === 0 ? (
-            <EmptyState title="No previous tickets" />
-          ) : (
-            <ul className="space-y-2">
-              {customerTickets.map((historicalTicket) => (
-                <li key={historicalTicket.id} className="rounded-md border border-slate-200 p-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-400">#{historicalTicket.id}</span>
-                    <StatusBadge status={historicalTicket.status} />
-                  </div>
-                  <p className="mt-1 text-sm text-slate-700">{historicalTicket.message}</p>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <PriorityBadge priority={historicalTicket.priority} />
-                    {historicalTicket.category && (
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                        {historicalTicket.category}
-                      </span>
+        {activeTab === "history" && (
+          <div>
+            <SectionHeader title="Ticket History" />
+            {customerTickets.length === 0 ? (
+              <div className="mt-2">
+                <EmptyState title="No previous tickets" />
+              </div>
+            ) : (
+              <ul className="mt-2 divide-y divide-border">
+                {customerTickets.map((historicalTicket) => (
+                  <li key={historicalTicket.id} className="py-3 first:pt-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">#{historicalTicket.id}</span>
+                      <StatusBadge status={historicalTicket.status} />
+                    </div>
+                    <p className="mt-1 text-sm text-foreground">{historicalTicket.message}</p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <PriorityBadge priority={historicalTicket.priority} />
+                      {historicalTicket.category && (
+                        <span className="rounded bg-surface-2 px-2 py-0.5 text-xs text-muted-foreground">
+                          {historicalTicket.category}
+                        </span>
+                      )}
+                    </div>
+                    {historicalTicket.resolution && (
+                      <p className="mt-1 text-xs text-muted-foreground">Resolution: {historicalTicket.resolution}</p>
                     )}
-                  </div>
-                  {historicalTicket.resolution && (
-                    <p className="mt-1 text-xs text-slate-500">Resolution: {historicalTicket.resolution}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
-        {activeTab === "evidence" &&
-          (!aiEvidence ? (
-            <EmptyState
-              title="No AI evidence yet"
-              description="Route this ticket to see the customer facts, incidents, and similar tickets used."
-            />
-          ) : (
-            <div className="space-y-2 text-xs text-slate-600">
-              <p>Customer profile used: {aiEvidence.context_used.customer_profile_used ? "Yes" : "No"}</p>
-              <p>Product ids referenced: {aiEvidence.context_used.product_ids.join(", ") || "none"}</p>
-              <p>Matching incident ids: {aiEvidence.context_used.active_incident_ids.join(", ") || "none"}</p>
-              <p>Similar ticket ids: {aiEvidence.context_used.similar_ticket_ids.join(", ") || "none"}</p>
-              <p>Knowledge document ids: {aiEvidence.context_used.knowledge_document_ids.join(", ") || "none"}</p>
-            </div>
-          ))}
+        {activeTab === "evidence" && (
+          <div>
+            <SectionHeader title="AI Evidence" />
+            {!aiEvidence ? (
+              <div className="mt-2">
+                <EmptyState
+                  title="No AI evidence yet"
+                  description="Route this ticket to see the customer facts, incidents, and similar tickets used."
+                />
+              </div>
+            ) : (
+              <dl className="mt-2 space-y-2">
+                <Field label="Customer profile used" value={aiEvidence.context_used.customer_profile_used ? "Yes" : "No"} />
+                <Field label="Product ids referenced" value={aiEvidence.context_used.product_ids.join(", ") || "none"} />
+                <Field label="Matching incident ids" value={aiEvidence.context_used.active_incident_ids.join(", ") || "none"} />
+                <Field label="Similar ticket ids" value={aiEvidence.context_used.similar_ticket_ids.join(", ") || "none"} />
+                <Field
+                  label="Knowledge document ids"
+                  value={aiEvidence.context_used.knowledge_document_ids.join(", ") || "none"}
+                />
+              </dl>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -170,8 +210,8 @@ export function Customer360({ customer, customerTickets, aiEvidence, isLoading, 
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="text-sm text-slate-700">{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="text-sm text-foreground">{value}</dd>
     </div>
   )
 }
@@ -179,11 +219,7 @@ function Field({ label, value }: { label: string; value: string }) {
 function StatusPill({ label, tone }: { label: string; tone: string }) {
   const isGood = tone === "Active"
   return (
-    <span
-      className={`rounded px-2 py-0.5 text-xs font-medium ${
-        isGood ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-      }`}
-    >
+    <span className={`rounded px-2 py-0.5 text-xs font-medium ${isGood ? "bg-success-bg text-success" : "bg-warning-bg text-warning"}`}>
       {label}
     </span>
   )

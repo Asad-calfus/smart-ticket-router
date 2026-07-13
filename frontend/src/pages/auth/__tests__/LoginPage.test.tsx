@@ -50,4 +50,19 @@ describe("LoginPage", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Incorrect email or password.")
   })
+
+  it("logs into each demo role without typing credentials", async () => {
+    mockLogin.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole("button", { name: /Support Agent/i }))
+
+    expect(mockLogin).toHaveBeenCalledWith("agent@example.com", "DemoPass123!")
+    await vi.waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/"))
+  })
 })
