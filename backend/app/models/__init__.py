@@ -14,6 +14,7 @@ from app.models.ticket import Ticket
 from app.models.ticket_assignment import TicketAssignment
 from app.models.ticket_message import TicketMessage
 from app.models.user import User
+from app.models.user_llm_settings import UserLLMSettings
 from app.models.user_session import UserSession
 
 __all__ = [
@@ -33,5 +34,6 @@ __all__ = [
     "TicketAssignment",
     "TicketMessage",
     "User",
+    "UserLLMSettings",
     "UserSession",
 ]

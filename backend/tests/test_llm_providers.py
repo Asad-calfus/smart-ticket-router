@@ -1,15 +1,17 @@
 """Tests for LLM provider selection/dispatch in routing_service: proving
-LLM_PROVIDER=openai is wired up correctly, that malformed OpenAI output still
-triggers the existing retry+fallback path, that backend safety rules apply
-regardless of which provider produced the raw result, and that mock mode
-keeps working. No real network calls are made — _call_openai_llm itself is
-monkeypatched, the same pattern the existing Anthropic/mock tests use.
+LLM_PROVIDER=openai/groq is wired up correctly, that malformed provider output
+still triggers the existing retry+fallback path, that backend safety rules
+apply regardless of which provider produced the raw result, and that mock
+mode keeps working. No real network calls are made — _call_openai_llm /
+_call_groq_llm are themselves monkeypatched, the same pattern the existing
+Anthropic/mock tests use.
 """
 
 import json
 
 from app.core.config import settings
 from app.services import routing_service
+from app.services.routing_service import LLMCallResult
 
 
 def _openai_response(**overrides) -> str:
@@ -29,29 +31,33 @@ def _openai_response(**overrides) -> str:
 def test_get_raw_result_dict_selects_openai_when_configured(monkeypatch):
     monkeypatch.setattr(settings, "llm_provider", "openai")
     monkeypatch.setattr(settings, "openai_api_key", "test-key-not-real")
+    config = routing_service._global_llm_config()
 
     captured_prompt = {}
 
-    def fake_call_openai(prompt):
+    def fake_call_openai(prompt, config):
         captured_prompt["value"] = prompt
-        return _openai_response()
+        return LLMCallResult(_openai_response())
 
     monkeypatch.setattr(routing_service, "_call_openai_llm", fake_call_openai)
 
-    result = routing_service._get_raw_result_dict("test message", "test prompt")
+    result, call_result = routing_service._get_raw_result_dict("test message", "test prompt", config)
 
     assert captured_prompt["value"] == "test prompt"
     assert result["category"] == "Billing"
+    assert call_result is not None
 
 
 def test_get_raw_result_dict_ignores_openai_provider_without_api_key(monkeypatch):
     # LLM_PROVIDER=openai but no key configured -> falls back to mock, not an error.
     monkeypatch.setattr(settings, "llm_provider", "openai")
     monkeypatch.setattr(settings, "openai_api_key", "")
+    config = routing_service._global_llm_config()
 
-    result = routing_service._get_raw_result_dict("broken", "unused prompt")
+    result, call_result = routing_service._get_raw_result_dict("broken", "unused prompt", config)
 
     assert result["category"] == "Needs Clarification"
+    assert call_result is None
 
 
 def test_openai_provider_selected_end_to_end(agent_client, monkeypatch):
@@ -60,13 +66,15 @@ def test_openai_provider_selected_end_to_end(agent_client, monkeypatch):
     monkeypatch.setattr(settings, "llm_provider", "openai")
     monkeypatch.setattr(settings, "openai_api_key", "test-key-not-real")
 
-    def fake_call_openai(prompt):
-        return _openai_response(
-            category="Product Query",
-            priority="Low",
-            assigned_team="Product Support",
-            reasoning="Routine product question.",
-            confidence=0.7,
+    def fake_call_openai(prompt, config):
+        return LLMCallResult(
+            _openai_response(
+                category="Product Query",
+                priority="Low",
+                assigned_team="Product Support",
+                reasoning="Routine product question.",
+                confidence=0.7,
+            )
         )
 
     monkeypatch.setattr(routing_service, "_call_openai_llm", fake_call_openai)
@@ -88,9 +96,9 @@ def test_invalid_openai_output_triggers_retry_then_fallback(agent_client, monkey
 
     calls = {"count": 0}
 
-    def fake_call_openai_malformed(prompt):
+    def fake_call_openai_malformed(prompt, config):
         calls["count"] += 1
-        return "this is not valid json at all"
+        return LLMCallResult("this is not valid json at all")
 
     monkeypatch.setattr(routing_service, "_call_openai_llm", fake_call_openai_malformed)
 
@@ -113,8 +121,8 @@ def test_openai_output_missing_required_fields_triggers_fallback(agent_client, m
     monkeypatch.setattr(settings, "llm_provider", "openai")
     monkeypatch.setattr(settings, "openai_api_key", "test-key-not-real")
 
-    def fake_call_openai_bad_schema(prompt):
-        return json.dumps({"category": "Not A Real Category"})
+    def fake_call_openai_bad_schema(prompt, config):
+        return LLMCallResult(json.dumps({"category": "Not A Real Category"}))
 
     monkeypatch.setattr(routing_service, "_call_openai_llm", fake_call_openai_bad_schema)
 
@@ -135,12 +143,14 @@ def test_backend_safety_rules_apply_regardless_of_openai_output(agent_client, mo
     monkeypatch.setattr(settings, "llm_provider", "openai")
     monkeypatch.setattr(settings, "openai_api_key", "test-key-not-real")
 
-    def fake_call_openai_wrong_priority(prompt):
-        return _openai_response(
-            category="Security",
-            priority="Low",  # deliberately wrong — the backend must override this
-            assigned_team="Security Operations",
-            confidence=0.9,
+    def fake_call_openai_wrong_priority(prompt, config):
+        return LLMCallResult(
+            _openai_response(
+                category="Security",
+                priority="Low",  # deliberately wrong — the backend must override this
+                assigned_team="Security Operations",
+                confidence=0.9,
+            )
         )
 
     monkeypatch.setattr(routing_service, "_call_openai_llm", fake_call_openai_wrong_priority)
@@ -157,8 +167,70 @@ def test_backend_safety_rules_apply_regardless_of_openai_output(agent_client, mo
     assert response.json()["priority"] == "High"
 
 
-def test_mock_mode_still_works_when_llm_provider_is_mock(agent_client):
-    assert settings.llm_provider == "mock"  # sanity check on the test environment's default
+def test_mock_mode_still_works_when_llm_provider_is_mock(agent_client, monkeypatch):
+    monkeypatch.setattr(settings, "llm_provider", "mock")
     response = agent_client.post("/api/tickets/route", json={"customer_id": 5, "message": "broken"})
     assert response.status_code == 200
     assert response.json()["category"] == "Needs Clarification"
+
+
+def test_get_raw_result_dict_selects_groq_when_configured(monkeypatch):
+    monkeypatch.setattr(settings, "llm_provider", "groq")
+    monkeypatch.setattr(settings, "groq_api_key", "test-key-not-real")
+    config = routing_service._global_llm_config()
+
+    captured_prompt = {}
+
+    def fake_call_groq(prompt, config):
+        captured_prompt["value"] = prompt
+        return LLMCallResult(_openai_response())
+
+    monkeypatch.setattr(routing_service, "_call_groq_llm", fake_call_groq)
+
+    result, call_result = routing_service._get_raw_result_dict("test message", "test prompt", config)
+
+    assert captured_prompt["value"] == "test prompt"
+    assert result["category"] == "Billing"
+    assert call_result is not None
+
+
+def test_get_raw_result_dict_ignores_groq_provider_without_api_key(monkeypatch):
+    # LLM_PROVIDER=groq but no key configured -> falls back to mock, not an error.
+    monkeypatch.setattr(settings, "llm_provider", "groq")
+    monkeypatch.setattr(settings, "groq_api_key", "")
+    config = routing_service._global_llm_config()
+
+    result, call_result = routing_service._get_raw_result_dict("broken", "unused prompt", config)
+
+    assert result["category"] == "Needs Clarification"
+    assert call_result is None
+
+
+def test_groq_provider_selected_end_to_end(agent_client, monkeypatch):
+    """LLM_PROVIDER=groq selects Groq and the result flows through the
+    full routing pipeline (schema validation, backend safeguards, evidence)."""
+    monkeypatch.setattr(settings, "llm_provider", "groq")
+    monkeypatch.setattr(settings, "groq_api_key", "test-key-not-real")
+
+    def fake_call_groq(prompt, config):
+        return LLMCallResult(
+            _openai_response(
+                category="Product Query",
+                priority="Low",
+                assigned_team="Product Support",
+                reasoning="Routine product question.",
+                confidence=0.7,
+            )
+        )
+
+    monkeypatch.setattr(routing_service, "_call_groq_llm", fake_call_groq)
+
+    response = agent_client.post(
+        "/api/tickets/route",
+        json={"customer_id": 7, "message": "Does Analytics Suite support scheduled weekly report exports?"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["category"] == "Product Query"
+    assert body["assigned_team"] == "Product Support"

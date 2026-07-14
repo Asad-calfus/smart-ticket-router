@@ -6,6 +6,17 @@ import { Button } from "./ui/Button"
 import { Select } from "./ui/Input"
 import { InlineFeedback } from "./ui/Toast"
 
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  mock: "Mock",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  groq: "Groq",
+}
+
+function providerDisplayName(provider: string): string {
+  return PROVIDER_DISPLAY_NAMES[provider] ?? provider
+}
+
 interface AIRecommendationCardProps {
   result: RoutingResult
   onAccept: () => void
@@ -85,6 +96,34 @@ export function AIRecommendationCard({
                   <li key={question}>{question}</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {result.provider && (
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="text-xs font-medium text-muted-foreground">AI call details</p>
+              <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Provider</dt>
+                  <dd className="mt-0.5 text-sm font-medium text-foreground">{providerDisplayName(result.provider)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Model</dt>
+                  <dd className="mt-0.5 text-sm font-medium text-foreground">{result.model_name || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Input tokens</dt>
+                  <dd className="mt-0.5 text-sm font-medium text-foreground">
+                    {result.input_tokens != null ? result.input_tokens.toLocaleString() : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Output tokens</dt>
+                  <dd className="mt-0.5 text-sm font-medium text-foreground">
+                    {result.output_tokens != null ? result.output_tokens.toLocaleString() : "—"}
+                  </dd>
+                </div>
+              </dl>
             </div>
           )}
 

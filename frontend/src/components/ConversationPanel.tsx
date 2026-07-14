@@ -93,6 +93,11 @@ export function ConversationPanel({
   }
 
   const isUnrouted = ticket.category === null
+  // Once In Progress/Resolved the routing decision is locked in (mirrors
+  // AIRecommendationCard's own Accept/Edit gating) — re-routing after that
+  // would silently change category/priority/team out from under an already
+  // actioned ticket.
+  const canReroute = ticket.status !== "In Progress" && ticket.status !== "Resolved"
   const visibleMessages = messages.filter((m) =>
     activeTab === "public" ? m.message_type !== "Internal Note" : m.message_type === "Internal Note",
   )
@@ -229,7 +234,20 @@ export function ConversationPanel({
 
         {routingResult && (
           <div>
-            <SectionHeader title="AI Recommendation" />
+            <div className="flex items-center justify-between gap-2">
+              <SectionHeader title="AI Recommendation" />
+              {canReroute && (
+                <button
+                  type="button"
+                  onClick={onRouteTicket}
+                  disabled={isRouting}
+                  className="text-xs font-medium text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Re-run routing using your personal LLM provider/model/key from LLM Settings, if you've saved one — otherwise the workspace default."
+                >
+                  {isRouting ? "Re-routing..." : "Re-route with my AI settings"}
+                </button>
+              )}
+            </div>
             <div className="mt-2">
               <AIRecommendationCard
                 result={routingResult}

@@ -103,8 +103,13 @@ OPENAI_API_KEY=your-real-key-here
 
 ### 2. Start PostgreSQL
 
+`docker-compose.yml` also defines `backend`/`frontend` services (see
+"Run everything in Docker" below) — for local dev, start only `db` so it
+doesn't compete with the `uvicorn`/`vite` processes you're about to run on
+the same ports:
+
 ```bash
-docker compose up -d
+docker compose up -d db
 ```
 
 ### 3. Backend
@@ -135,6 +140,34 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
 - Interactive API docs: http://localhost:8000/docs
+
+## Run everything in Docker
+
+An alternative to the local setup above — builds and runs the database,
+backend, and frontend together, with the frontend served by nginx (which also
+reverse-proxies `/api` to the backend, so the browser only ever talks to one
+origin — no CORS setup needed):
+
+```bash
+cp .env.example .env   # if you haven't already; defaults to mock mode, zero API keys
+docker compose up -d --build
+```
+
+The backend container runs `alembic upgrade head` on every start, so the
+schema is always current. Seed demo data once, the same way as local dev,
+just run it inside the backend container instead of a local venv:
+
+```bash
+docker compose exec backend python -m app.db.seed
+docker compose exec backend python -m app.db.backfill_embeddings
+docker compose exec backend python -m app.db.seed_auth
+```
+
+- Frontend: http://localhost:8080 (override with `FRONTEND_PORT` in `.env`)
+- Backend API: http://localhost:8000
+
+Stop everything with `docker compose down` (add `-v` to also drop the
+Postgres volume).
 
 ## Demo accounts
 
@@ -181,6 +214,10 @@ cd frontend && npm run test:e2e
   flow, database schema, security model, API reference.
 - [docs/EXPERIMENTAL_PERFORMANCE.md](docs/EXPERIMENTAL_PERFORMANCE.md) —
   what's actually been measured vs. estimated vs. mocked.
+- [docs/RECENT_UPDATES.md](docs/RECENT_UPDATES.md) — plain-language summary
+  of the token-cost optimization, per-agent LLM settings, and Docker setup.
+- [docs/token-optimization.md](docs/token-optimization.md) — the token/cost
+  measurements behind that optimization, in detail.
 
 ## Known limitations
 

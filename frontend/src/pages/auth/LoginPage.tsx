@@ -87,34 +87,35 @@ export function LoginPage() {
           {isSubmitting ? "Logging in..." : "Log in"}
         </Button>
       </form>
-      {import.meta.env.DEV && (
-        <section className="mt-5 border-t border-border pt-4" aria-labelledby="demo-login-heading">
-          <h2 id="demo-login-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Demo accounts (dev only)
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">Choose a role to enter the demo instantly.</p>
-          <div className="mt-3 grid gap-2">
-            {DEMO_ACCOUNTS.map((account) => (
-              <button
-                key={account.email}
-                type="button"
-                disabled={isSubmitting || activeDemo !== null}
-                onClick={() => handleDemoLogin(account)}
-                className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-left transition-colors duration-150 hover:border-accent hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span>
-                  <span className="block text-xs font-semibold text-foreground">{account.label}</span>
-                  <span className="block text-[11px] text-muted-foreground">{account.description}</span>
-                </span>
-                <span className="flex items-center gap-1 text-xs font-medium text-accent">
-                  {activeDemo === account.label ? "Opening..." : "Open"}
-                  {activeDemo !== account.label && <ArrowRight size={14} />}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="mt-5 border-t border-border pt-4" aria-labelledby="demo-login-heading">
+        <h2 id="demo-login-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Demo accounts
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Click a role to log in instantly, or type the credentials below manually. Password for all: {DEMO_PASSWORD}
+        </p>
+        <div className="mt-3 grid gap-2">
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              disabled={isSubmitting || activeDemo !== null}
+              onClick={() => handleDemoLogin(account)}
+              className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-left transition-colors duration-150 hover:border-accent hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>
+                <span className="block text-xs font-semibold text-foreground">{account.label}</span>
+                <span className="block text-[11px] text-muted-foreground">{account.description}</span>
+                <span className="block font-mono text-[11px] text-muted-foreground">{account.email}</span>
+              </span>
+              <span className="flex items-center gap-1 text-xs font-medium text-accent">
+                {activeDemo === account.label ? "Opening..." : "Open"}
+                {activeDemo !== account.label && <ArrowRight size={14} />}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
       <div className="mt-4 flex flex-col gap-1 text-xs text-muted-foreground">
         <Link to="/forgot-password" className="hover:underline">
           Forgot password?
