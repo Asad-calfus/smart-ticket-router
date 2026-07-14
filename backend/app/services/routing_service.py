@@ -23,7 +23,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import RoutingEvidence, Ticket
+from app.core.crypto import EncryptionNotConfigured, decrypt_api_key
+from app.models import RoutingEvidence, Ticket, User, UserLLMSettings
 from app.models.enums import (
     AccessStatus,
     AssignedTeam,
@@ -64,6 +65,28 @@ def _default_clarification_questions() -> list[str]:
         "What error do you see?",
         "When did the issue begin?",
     ]
+
+
+@dataclass
+class LLMConfig:
+    """Which provider/model/key a single routing call should use — either a
+    user's personal UserLLMSettings row, or the global env-based settings.*
+    fallback (see _resolve_llm_config)."""
+
+    provider: str
+    api_key: str
+    model_name: str
+    # None = provider/model default. Only meaningful for model families that
+    # support it (see REASONING_LEVELS_BY_PREFIX in schemas/user_llm_settings.py).
+    reasoning_effort: str | None = None
+
+
+@dataclass
+class LLMCallResult:
+    raw_text: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 FALLBACK_RESULT = RoutingResult(
@@ -308,39 +331,112 @@ def _call_mock_llm(message: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Real LLMs (LLM_PROVIDER=anthropic | openai)
+# Real LLMs (LLM_PROVIDER=anthropic | openai | groq)
 # ---------------------------------------------------------------------------
 
 
-def _call_anthropic_llm(prompt: str) -> str:
+def _anthropic_usage(response) -> tuple[int | None, int | None, int | None]:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None, None, None
+    return usage.input_tokens, usage.output_tokens, usage.input_tokens + usage.output_tokens
+
+
+def _openai_compatible_usage(response) -> tuple[int | None, int | None, int | None]:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None, None, None
+    return usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+
+
+# Anthropic's extended-thinking API takes a token budget, not a named level —
+# this maps our shared minimal/low/medium/high vocabulary onto one.
+ANTHROPIC_THINKING_BUDGET_TOKENS = {"minimal": 1024, "low": 1024, "medium": 4096, "high": 10000}
+
+# OpenAI/Groq reasoning models spend hidden reasoning tokens out of the same
+# max_completion_tokens budget as the visible answer — at "high" effort a
+# model can burn the entire cap on reasoning and return an EMPTY completion,
+# which then fails JSON parsing and falls back to the generic low-confidence
+# result. This headroom is added on top of the base output budget so there's
+# always room left for the actual answer after reasoning.
+OPENAI_BASE_OUTPUT_TOKENS = 1000
+OPENAI_REASONING_TOKEN_HEADROOM = {"minimal": 0, "low": 500, "medium": 1500, "high": 4000}
+
+
+def _openai_max_completion_tokens(config: LLMConfig) -> int:
+    headroom = OPENAI_REASONING_TOKEN_HEADROOM.get(config.reasoning_effort or "minimal", 0)
+    return OPENAI_BASE_OUTPUT_TOKENS + headroom
+
+
+def _call_anthropic_llm(prompt: str, config: LLMConfig) -> LLMCallResult:
     from anthropic import Anthropic  # imported lazily so mock mode never needs the package configured
 
-    client = Anthropic(api_key=settings.anthropic_api_key)
-    response = client.messages.create(
-        model=settings.llm_model,
-        max_tokens=600,
-        temperature=0,  # low-variation settings, for routing consistency
+    client = Anthropic(api_key=config.api_key)
+    kwargs = dict(
+        model=config.model_name,
         messages=[{"role": "user", "content": prompt}],
     )
-    return response.content[0].text
+    if config.reasoning_effort and config.reasoning_effort in ANTHROPIC_THINKING_BUDGET_TOKENS:
+        budget_tokens = ANTHROPIC_THINKING_BUDGET_TOKENS[config.reasoning_effort]
+        # max_tokens must exceed the thinking budget by enough room for the
+        # actual JSON answer that follows it.
+        kwargs["max_tokens"] = budget_tokens + 600
+        kwargs["thinking"] = {"type": "enabled", "budget_tokens": budget_tokens}
+    else:
+        kwargs["max_tokens"] = 600
+        kwargs["temperature"] = 0  # low-variation settings, for routing consistency; incompatible with thinking mode
+    response = client.messages.create(**kwargs)
+    input_tokens, output_tokens, total_tokens = _anthropic_usage(response)
+    text_block = next(block for block in response.content if block.type == "text")
+    return LLMCallResult(text_block.text, input_tokens, output_tokens, total_tokens)
 
 
-def _call_openai_llm(prompt: str) -> str:
-    from openai import OpenAI  # imported lazily so mock mode never needs the package configured
+def _call_openai_llm(prompt: str, config: LLMConfig) -> LLMCallResult:
+    from openai import BadRequestError, OpenAI  # imported lazily so mock mode never needs the package configured
 
-    client = OpenAI(api_key=settings.openai_api_key)
+    client = OpenAI(api_key=config.api_key)
     # response_format=json_object guarantees syntactically valid JSON back from
     # the API; our own Pydantic validation (below) still checks it actually
     # matches RoutingResult's shape, and the retry/fallback path handles it if
     # not. Temperature is deliberately omitted: some newer models only accept
     # the default temperature and reject overrides, and low-variation output
     # is already reinforced by the prompt's strict-output instructions.
-    response = client.chat.completions.create(
-        model=settings.openai_llm_model,
+    # max_completion_tokens caps worst-case cost/latency (there was previously
+    # no cap at all). reasoning_effort="minimal" avoids paying for hidden
+    # reasoning tokens on this simple classification task — measured to cut
+    # total tokens ~40% with no quality loss on gpt-5-mini — but not every
+    # model accepts the param (e.g. the gpt-4o family), so fall back to
+    # calling without it if the API rejects it.
+    kwargs = dict(
+        model=config.model_name,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
+        max_completion_tokens=_openai_max_completion_tokens(config),
     )
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(**kwargs, reasoning_effort=config.reasoning_effort or "minimal")
+    except BadRequestError:
+        response = client.chat.completions.create(**kwargs)
+    input_tokens, output_tokens, total_tokens = _openai_compatible_usage(response)
+    return LLMCallResult(response.choices[0].message.content, input_tokens, output_tokens, total_tokens)
+
+
+def _call_groq_llm(prompt: str, config: LLMConfig) -> LLMCallResult:
+    from openai import BadRequestError, OpenAI  # Groq exposes an OpenAI-compatible API, so the same SDK works here
+
+    client = OpenAI(api_key=config.api_key, base_url="https://api.groq.com/openai/v1")
+    kwargs = dict(
+        model=config.model_name,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+        max_completion_tokens=_openai_max_completion_tokens(config),
+    )
+    try:
+        response = client.chat.completions.create(**kwargs, reasoning_effort=config.reasoning_effort or "minimal")
+    except BadRequestError:
+        response = client.chat.completions.create(**kwargs)
+    input_tokens, output_tokens, total_tokens = _openai_compatible_usage(response)
+    return LLMCallResult(response.choices[0].message.content, input_tokens, output_tokens, total_tokens)
 
 
 def _parse_json_object(raw_text: str) -> dict:
@@ -351,24 +447,56 @@ def _parse_json_object(raw_text: str) -> dict:
     return json.loads(cleaned)
 
 
-def _get_raw_result_dict(message: str, prompt: str) -> dict:
-    if settings.llm_provider == "anthropic" and settings.anthropic_api_key:
-        raw_text = _call_anthropic_llm(prompt)
-        return _parse_json_object(raw_text)
-    if settings.llm_provider == "openai" and settings.openai_api_key:
-        raw_text = _call_openai_llm(prompt)
-        return _parse_json_object(raw_text)
-    return _call_mock_llm(message)
+def _get_raw_result_dict(message: str, prompt: str, config: LLMConfig) -> tuple[dict, LLMCallResult | None]:
+    if config.provider == "anthropic" and config.api_key:
+        call_result = _call_anthropic_llm(prompt, config)
+    elif config.provider == "openai" and config.api_key:
+        call_result = _call_openai_llm(prompt, config)
+    elif config.provider == "groq" and config.api_key:
+        call_result = _call_groq_llm(prompt, config)
+    else:
+        return _call_mock_llm(message), None
+    return _parse_json_object(call_result.raw_text), call_result
 
 
-def _current_llm_model_name() -> str | None:
-    """The model name actually in effect for RoutingEvidence provenance — None
-    for the mock provider, which isn't a model at all."""
+def _global_llm_config() -> LLMConfig:
+    """The system-wide default from .env — used whenever a user has no
+    personal UserLLMSettings row, exactly matching the old single-config
+    behavior."""
     if settings.llm_provider == "anthropic":
-        return settings.llm_model
+        return LLMConfig("anthropic", settings.anthropic_api_key, settings.llm_model)
     if settings.llm_provider == "openai":
-        return settings.openai_llm_model
-    return None
+        return LLMConfig("openai", settings.openai_api_key, settings.openai_llm_model)
+    if settings.llm_provider == "groq":
+        return LLMConfig("groq", settings.groq_api_key, settings.groq_llm_model)
+    return LLMConfig("mock", "", "")
+
+
+def _resolve_llm_config(db: Session, user: User | None) -> LLMConfig:
+    """A user's personal LLM settings, if they've saved one, else the global
+    .env-based default. A personal row always wins once saved, even if its
+    provider is "mock" — that's an explicit choice, not an absence of one."""
+    if user is not None:
+        user_settings = db.execute(
+            select(UserLLMSettings).where(UserLLMSettings.user_id == user.id)
+        ).scalar_one_or_none()
+        if user_settings is not None:
+            api_key = ""
+            if user_settings.provider != "mock" and user_settings.encrypted_api_key:
+                try:
+                    api_key = decrypt_api_key(user_settings.encrypted_api_key)
+                except EncryptionNotConfigured as exc:
+                    logger.error(
+                        "Could not decrypt personal LLM API key for user %s (%s); "
+                        "falling back to the system default.",
+                        user.id,
+                        exc,
+                    )
+                    return _global_llm_config()
+            return LLMConfig(
+                user_settings.provider, api_key, user_settings.model_name, user_settings.reasoning_effort
+            )
+    return _global_llm_config()
 
 
 class _LLMOutput(BaseModel):
@@ -384,17 +512,17 @@ class _LLMOutput(BaseModel):
     clarification_questions: list[str] = Field(default_factory=list)
 
 
-def _get_llm_output_with_retry(message: str, prompt: str) -> _LLMOutput | None:
+def _get_llm_output_with_retry(message: str, prompt: str, config: LLMConfig) -> tuple[_LLMOutput | None, LLMCallResult | None]:
     last_error: Exception | None = None
     for attempt in range(1, LLM_MAX_ATTEMPTS + 1):
         try:
-            raw = _get_raw_result_dict(message, prompt)
-            return _LLMOutput.model_validate(raw)
+            raw, call_result = _get_raw_result_dict(message, prompt, config)
+            return _LLMOutput.model_validate(raw), call_result
         except Exception as exc:  # noqa: BLE001 - deliberately broad: malformed JSON, validation, network, provider errors
             last_error = exc
             logger.warning("Routing LLM attempt %s/%s failed: %s", attempt, LLM_MAX_ATTEMPTS, exc)
     logger.error("Routing LLM failed after %s attempts (%s); using safe fallback.", LLM_MAX_ATTEMPTS, last_error)
-    return None
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -507,11 +635,23 @@ class RoutingOutcome:
     result: RoutingResult
     elapsed_ms: int
     embedding: list[float]
+    provider: str
+    model_name: str | None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
 
 
-def route_ticket(db: Session, customer_id: int, message: str, use_context: bool = True) -> RoutingOutcome:
+def route_ticket(
+    db: Session,
+    customer_id: int,
+    message: str,
+    use_context: bool = True,
+    current_user: User | None = None,
+) -> RoutingOutcome:
     get_customer_or_404(db, customer_id)  # 404s on an invalid customer id, with or without context
     context = context_service.build_customer_context(db, customer_id) if use_context else None
+    config = _resolve_llm_config(db, current_user)
 
     query_embedding = get_embedding(message)
     if use_context:
@@ -523,7 +663,7 @@ def route_ticket(db: Session, customer_id: int, message: str, use_context: bool 
     prompt = build_prompt(message, context, similar_tickets, knowledge_documents)
 
     start = time.monotonic()
-    llm_output = _get_llm_output_with_retry(message, prompt)
+    llm_output, call_result = _get_llm_output_with_retry(message, prompt, config)
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
     if llm_output is None:
@@ -550,10 +690,34 @@ def route_ticket(db: Session, customer_id: int, message: str, use_context: bool 
     )
     result = result.model_copy(update={"context_used": context_used})
 
-    return RoutingOutcome(result=result, elapsed_ms=elapsed_ms, embedding=query_embedding)
+    return RoutingOutcome(
+        result=result,
+        elapsed_ms=elapsed_ms,
+        embedding=query_embedding,
+        provider=config.provider,
+        model_name=config.model_name if config.provider != "mock" else None,
+        input_tokens=call_result.input_tokens if call_result else None,
+        output_tokens=call_result.output_tokens if call_result else None,
+        total_tokens=call_result.total_tokens if call_result else None,
+    )
 
 
-def route_ticket_request(db: Session, payload: TicketRouteRequest) -> TicketRouteResponse:
+def _provenance_kwargs(outcome: RoutingOutcome) -> dict:
+    """Fields TicketRouteResponse adds on top of RoutingResult — same shape
+    RoutingEvidence persists, so the live response and a later evidence
+    refetch always agree."""
+    return {
+        "provider": outcome.provider,
+        "model_name": outcome.model_name,
+        "input_tokens": outcome.input_tokens,
+        "output_tokens": outcome.output_tokens,
+        "total_tokens": outcome.total_tokens,
+    }
+
+
+def route_ticket_request(
+    db: Session, payload: TicketRouteRequest, current_user: User | None = None
+) -> TicketRouteResponse:
     """Entry point for POST /api/tickets/route: routes the message and, unless
     payload.persist is False, writes the outcome onto a ticket row (creating
     one if payload.ticket_id is absent).
@@ -561,12 +725,20 @@ def route_ticket_request(db: Session, payload: TicketRouteRequest) -> TicketRout
     persist=False is used by the "Route Without Context" comparison demo — it
     computes a real result without creating or mutating any ticket, so trying
     both modes side by side never clutters the ticket queue.
+
+    current_user is the acting agent/admin — if they've saved personal LLM
+    settings (see app/api/llm_settings.py), those are used for this call
+    instead of the global .env-based default (see _resolve_llm_config).
     """
     get_customer_or_404(db, payload.customer_id)
 
     if not payload.persist:
-        outcome = route_ticket(db, payload.customer_id, payload.message, use_context=payload.use_context)
-        return TicketRouteResponse(ticket_id=payload.ticket_id or 0, **outcome.result.model_dump())
+        outcome = route_ticket(
+            db, payload.customer_id, payload.message, use_context=payload.use_context, current_user=current_user
+        )
+        return TicketRouteResponse(
+            ticket_id=payload.ticket_id or 0, **outcome.result.model_dump(), **_provenance_kwargs(outcome)
+        )
 
     if payload.ticket_id is not None:
         ticket = get_ticket_or_404(db, payload.ticket_id)
@@ -579,7 +751,9 @@ def route_ticket_request(db: Session, payload: TicketRouteRequest) -> TicketRout
         db.add(ticket)
         db.flush()
 
-    outcome = route_ticket(db, payload.customer_id, payload.message, use_context=payload.use_context)
+    outcome = route_ticket(
+        db, payload.customer_id, payload.message, use_context=payload.use_context, current_user=current_user
+    )
     result = outcome.result
 
     ticket.category = result.category
@@ -596,8 +770,8 @@ def route_ticket_request(db: Session, payload: TicketRouteRequest) -> TicketRout
     db.add(
         RoutingEvidence(
             ticket_id=ticket.id,
-            provider=settings.llm_provider,
-            model_name=_current_llm_model_name(),
+            provider=outcome.provider,
+            model_name=outcome.model_name,
             rules_version=ROUTING_RULES_VERSION,
             customer_profile_used=context_used.customer_profile_used,
             product_ids=context_used.product_ids,
@@ -612,13 +786,16 @@ def route_ticket_request(db: Session, payload: TicketRouteRequest) -> TicketRout
             needs_human_review=result.needs_human_review,
             clarification_questions=result.clarification_questions,
             routing_time_ms=outcome.elapsed_ms,
+            input_tokens=outcome.input_tokens,
+            output_tokens=outcome.output_tokens,
+            total_tokens=outcome.total_tokens,
         )
     )
 
     db.commit()
     db.refresh(ticket)
 
-    return TicketRouteResponse(ticket_id=ticket.id, **result.model_dump())
+    return TicketRouteResponse(ticket_id=ticket.id, **result.model_dump(), **_provenance_kwargs(outcome))
 
 
 def get_latest_evidence(db: Session, ticket_id: int):

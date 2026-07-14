@@ -48,4 +48,11 @@ class RoutingEvidence(Base):
     clarification_questions: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
 
     routing_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Null for the mock provider (no API usage) or if the provider response
+    # didn't include usage — never fabricated/estimated, only real counts.
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

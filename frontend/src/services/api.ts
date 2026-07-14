@@ -8,8 +8,10 @@ import type {
   Customer,
   CustomerDetail,
   GenericMessage,
+  LLMProviderName,
   LoginRequest,
   MetricsSummary,
+  ModelListResponse,
   MyProfile,
   MyProfileUpdate,
   MyTicket,
@@ -25,6 +27,8 @@ import type {
   TicketRead,
   TicketRouteRequest,
   TicketRouteResponse,
+  UserLLMSettingsRead,
+  UserLLMSettingsUpdate,
 } from "../types"
 
 // Empty by default so local development uses Vite's same-origin `/api` proxy.
@@ -160,6 +164,17 @@ export const api = {
   getAgentRoster: () => request<AgentRosterItem[]>("/api/tickets/agents/roster"),
 
   getMetricsSummary: () => request<MetricsSummary>("/api/metrics/summary"),
+
+  // --- Personal LLM settings ---------------------------------------------------
+  getMyLlmSettings: () => request<UserLLMSettingsRead>("/api/me/llm-settings"),
+  saveMyLlmSettings: (payload: UserLLMSettingsUpdate) =>
+    request<UserLLMSettingsRead>("/api/me/llm-settings", { method: "PUT", body: JSON.stringify(payload) }),
+  getLlmProviderDefaults: () => request<Record<string, string>>("/api/me/llm-settings/defaults"),
+  listLlmModels: (provider: LLMProviderName, apiKey?: string) =>
+    request<ModelListResponse>("/api/me/llm-settings/models", {
+      method: "POST",
+      body: JSON.stringify({ provider, api_key: apiKey || undefined }),
+    }),
 
   // --- Admin ------------------------------------------------------------------
   inviteAgent: (payload: AgentInviteRequest) =>

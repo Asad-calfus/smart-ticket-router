@@ -31,3 +31,6 @@ class User(Base):
     agent_profile: Mapped["AgentProfile | None"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
+    llm_settings: Mapped["UserLLMSettings | None"] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )

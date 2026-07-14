@@ -22,6 +22,9 @@ pgvector==0.4.1
 anthropic==0.75.0
 openai==2.9.0
 
+# Encrypts personal LLM API keys at rest (per-user LLM settings).
+cryptography==49.0.0
+
 # Utilities
 python-dotenv==1.2.1
 numpy==2.3.5

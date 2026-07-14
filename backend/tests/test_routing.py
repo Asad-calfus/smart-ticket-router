@@ -226,7 +226,7 @@ def test_route_without_context_misses_the_incident_boost_that_context_catches(ag
 
 
 def test_llm_failure_returns_safe_fallback_not_a_crash(agent_client, monkeypatch):
-    def _boom(message, prompt):
+    def _boom(message, prompt, config):
         raise RuntimeError("simulated provider outage")
 
     monkeypatch.setattr(routing_service, "_get_raw_result_dict", _boom)
@@ -240,9 +240,9 @@ def test_llm_failure_returns_safe_fallback_not_a_crash(agent_client, monkeypatch
 def test_malformed_llm_output_is_retried_then_falls_back(agent_client, monkeypatch):
     calls = {"count": 0}
 
-    def _bad_json(message, prompt):
+    def _bad_json(message, prompt, config):
         calls["count"] += 1
-        return {"category": "Not A Real Category"}
+        return {"category": "Not A Real Category"}, None
 
     monkeypatch.setattr(routing_service, "_get_raw_result_dict", _bad_json)
     response = _route(agent_client, 1, "My dashboard is broken somehow today.")

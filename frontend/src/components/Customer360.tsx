@@ -189,22 +189,54 @@ export function Customer360({ customer, customerTickets, aiEvidence, isLoading, 
                 />
               </div>
             ) : (
-              <dl className="mt-2 space-y-2">
-                <Field label="Customer profile used" value={aiEvidence.context_used.customer_profile_used ? "Yes" : "No"} />
-                <Field label="Product ids referenced" value={aiEvidence.context_used.product_ids.join(", ") || "none"} />
-                <Field label="Matching incident ids" value={aiEvidence.context_used.active_incident_ids.join(", ") || "none"} />
-                <Field label="Similar ticket ids" value={aiEvidence.context_used.similar_ticket_ids.join(", ") || "none"} />
-                <Field
-                  label="Knowledge document ids"
-                  value={aiEvidence.context_used.knowledge_document_ids.join(", ") || "none"}
-                />
-              </dl>
+              <div className="mt-2 space-y-4">
+                {aiEvidence.provider && (
+                  <div className="rounded-md border border-border bg-surface-2 p-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      AI call details
+                    </p>
+                    <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-4">
+                      <Field label="Provider" value={providerDisplayName(aiEvidence.provider)} />
+                      <Field label="Model" value={aiEvidence.model_name || "—"} />
+                      <Field
+                        label="Input tokens"
+                        value={aiEvidence.input_tokens != null ? aiEvidence.input_tokens.toLocaleString() : "—"}
+                      />
+                      <Field
+                        label="Output tokens"
+                        value={aiEvidence.output_tokens != null ? aiEvidence.output_tokens.toLocaleString() : "—"}
+                      />
+                    </dl>
+                  </div>
+                )}
+                <dl className="space-y-2">
+                  <Field label="Customer profile used" value={aiEvidence.context_used.customer_profile_used ? "Yes" : "No"} />
+                  <Field label="Product ids referenced" value={aiEvidence.context_used.product_ids.join(", ") || "none"} />
+                  <Field label="Matching incident ids" value={aiEvidence.context_used.active_incident_ids.join(", ") || "none"} />
+                  <Field label="Similar ticket ids" value={aiEvidence.context_used.similar_ticket_ids.join(", ") || "none"} />
+                  <Field
+                    label="Knowledge document ids"
+                    value={aiEvidence.context_used.knowledge_document_ids.join(", ") || "none"}
+                  />
+                </dl>
+              </div>
             )}
           </div>
         )}
       </div>
     </div>
   )
+}
+
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  mock: "Mock",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  groq: "Groq",
+}
+
+function providerDisplayName(provider: string): string {
+  return PROVIDER_DISPLAY_NAMES[provider] ?? provider
 }
 
 function Field({ label, value }: { label: string; value: string }) {

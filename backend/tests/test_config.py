@@ -41,3 +41,12 @@ def test_llm_provider_can_be_set_to_mock_via_env(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "mock")
     fresh_settings = Settings()
     assert fresh_settings.llm_provider == "mock"
+
+
+def test_llm_provider_can_be_set_to_groq_via_env(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "test-key-not-real")
+    fresh_settings = Settings()
+    assert fresh_settings.llm_provider == "groq"
+    assert fresh_settings.groq_api_key == "test-key-not-real"
+    assert fresh_settings.groq_llm_model == "openai/gpt-oss-120b"

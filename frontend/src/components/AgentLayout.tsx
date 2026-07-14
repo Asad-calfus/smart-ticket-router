@@ -36,6 +36,9 @@ export function AgentLayout() {
             <NavLink to="/analytics" className={navClass}>
               Analytics
             </NavLink>
+            <NavLink to="/settings/llm" className={navClass}>
+              LLM Settings
+            </NavLink>
             {user?.role === "Admin" && (
               <NavLink to="/admin" className={navClass}>
                 Admin
@@ -63,6 +66,9 @@ export function AgentLayout() {
             </NavLink>
             <NavLink to="/analytics" className={navClass} onClick={() => setMobileNavOpen(false)}>
               Analytics
+            </NavLink>
+            <NavLink to="/settings/llm" className={navClass} onClick={() => setMobileNavOpen(false)}>
+              LLM Settings
             </NavLink>
             {user?.role === "Admin" && (
               <NavLink to="/admin" className={navClass} onClick={() => setMobileNavOpen(false)}>

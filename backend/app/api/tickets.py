@@ -37,8 +37,10 @@ def list_tickets(
 
 
 @router.post("/route", response_model=TicketRouteResponse)
-def route_ticket(payload: TicketRouteRequest, db: Session = Depends(get_db)) -> TicketRouteResponse:
-    return routing_service.route_ticket_request(db, payload)
+def route_ticket(
+    payload: TicketRouteRequest, agent: User = Depends(require_agent), db: Session = Depends(get_db)
+) -> TicketRouteResponse:
+    return routing_service.route_ticket_request(db, payload, current_user=agent)
 
 
 @router.get("/{ticket_id}", response_model=TicketRead)
@@ -114,5 +116,8 @@ def get_ticket_evidence(ticket_id: int, db: Session = Depends(get_db)) -> Routin
         provider=evidence.provider,
         model_name=evidence.model_name,
         rules_version=evidence.rules_version,
+        input_tokens=evidence.input_tokens,
+        output_tokens=evidence.output_tokens,
+        total_tokens=evidence.total_tokens,
         created_at=evidence.created_at,
     )

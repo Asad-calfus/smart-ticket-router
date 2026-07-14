@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, customer_portal, customers, incidents, metrics, tickets
+from app.api import admin, auth, customer_portal, customers, incidents, llm_settings, metrics, tickets
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 
@@ -32,6 +32,7 @@ app.include_router(customers.router)
 app.include_router(tickets.router)
 app.include_router(incidents.router)
 app.include_router(metrics.router)
+app.include_router(llm_settings.router)
 
 
 @app.get("/health")

@@ -14,6 +14,7 @@ import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage"
 import { AgentsPage } from "./pages/admin/AgentsPage"
 import { AuditLogPage } from "./pages/admin/AuditLogPage"
 import { AnalyticsPage } from "./pages/AnalyticsPage"
+import { LlmSettingsPage } from "./pages/LlmSettingsPage"
 import { MyTicketsPage } from "./pages/customer/MyTicketsPage"
 import { NewTicketPage } from "./pages/customer/NewTicketPage"
 import { ProfilePage } from "./pages/customer/ProfilePage"
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route element={<AgentLayout />}>
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/settings/llm" element={<LlmSettingsPage />} />
         </Route>
       </Route>
 

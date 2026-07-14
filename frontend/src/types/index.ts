@@ -135,6 +135,15 @@ export interface RoutingResult {
   needs_human_review: boolean
   clarification_questions: string[]
   context_used: ContextUsed
+  // Which provider/model actually produced this result, and its real token
+  // cost — present on a live routing response and on persisted evidence
+  // alike. Absent (undefined) only for older in-memory shapes that predate
+  // this field; null tokens mean the mock provider (no real API usage).
+  provider?: string
+  model_name?: string | null
+  input_tokens?: number | null
+  output_tokens?: number | null
+  total_tokens?: number | null
 }
 
 export interface TicketRouteRequest {
@@ -318,9 +327,37 @@ export interface TicketAssignmentRead {
 
 export interface RoutingEvidenceRead extends RoutingResult {
   provider: string
-  model_name: string | null
   rules_version: string
   created_at: string
+}
+
+// --- Personal LLM settings -------------------------------------------------------
+
+export type LLMProviderName = "mock" | "anthropic" | "openai" | "groq"
+
+export interface UserLLMSettingsRead {
+  provider: LLMProviderName
+  model_name: string
+  has_api_key: boolean
+  key_last4: string | null
+  reasoning_effort: string | null
+}
+
+export interface UserLLMSettingsUpdate {
+  provider: LLMProviderName
+  model_name: string
+  api_key?: string | null
+  reasoning_effort?: string | null
+}
+
+export interface LlmModelInfo {
+  id: string
+  reasoning_levels: string[]
+}
+
+export interface ModelListResponse {
+  models: LlmModelInfo[]
+  error: string | null
 }
 
 // --- Admin ----------------------------------------------------------------------

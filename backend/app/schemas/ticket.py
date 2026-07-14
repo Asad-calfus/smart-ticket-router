@@ -99,6 +99,14 @@ class TicketRouteRequest(BaseModel):
 
 class TicketRouteResponse(RoutingResult):
     ticket_id: int
+    # Provenance for this specific call — same fields RoutingEvidenceRead
+    # persists, surfaced immediately so the UI doesn't need a reload/refetch
+    # to show which provider/model handled this ticket and what it cost.
+    provider: str
+    model_name: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 class TicketResolveRequest(BaseModel):
