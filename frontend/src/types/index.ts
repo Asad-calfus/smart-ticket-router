@@ -22,6 +22,7 @@ export type AssignedTeam =
   | "Product Support"
   | "Security Operations"
   | "General Support"
+  | "Triage Queue"
 
 export type TicketStatus = "Open" | "Routed" | "In Progress" | "Needs Human Review" | "Resolved" | "Reopened"
 
@@ -91,6 +92,7 @@ export interface TicketListItem {
   category: TicketCategory | null
   priority: TicketPriority | null
   assigned_team: AssignedTeam | null
+  secondary_teams: AssignedTeam[]
   status: TicketStatus
   confidence: number | null
   needs_human_review: boolean
@@ -107,6 +109,7 @@ export interface TicketRead {
   category: TicketCategory | null
   priority: TicketPriority | null
   assigned_team: AssignedTeam | null
+  secondary_teams: AssignedTeam[]
   reasoning: string | null
   confidence: number | null
   needs_human_review: boolean
@@ -130,6 +133,7 @@ export interface RoutingResult {
   category: TicketCategory
   priority: TicketPriority
   assigned_team: AssignedTeam
+  secondary_teams: AssignedTeam[]
   reasoning: string
   confidence: number
   needs_human_review: boolean
@@ -180,6 +184,16 @@ export interface TicketFeedbackRead {
   created_at: string
 }
 
+export interface MetricsBreakdownEntry {
+  label: string
+  count: number
+}
+
+export interface MetricsDailyVolumeEntry {
+  date: string
+  count: number
+}
+
 export interface MetricsSummary {
   total_routed_tickets: number
   human_review_percentage: number
@@ -189,6 +203,11 @@ export interface MetricsSummary {
   estimated_manual_routing_time_seconds: number
   estimated_time_saved_seconds: number | null
   manual_routing_time_is_estimated: boolean
+  category_breakdown: MetricsBreakdownEntry[]
+  team_breakdown: MetricsBreakdownEntry[]
+  priority_breakdown: MetricsBreakdownEntry[]
+  daily_volume: MetricsDailyVolumeEntry[]
+  avg_confidence: number | null
 }
 
 export const TICKET_CATEGORIES: TicketCategory[] = [
@@ -212,6 +231,7 @@ export const ASSIGNED_TEAMS: AssignedTeam[] = [
   "Product Support",
   "Security Operations",
   "General Support",
+  "Triage Queue",
 ]
 
 // --- Auth / roles -----------------------------------------------------------
