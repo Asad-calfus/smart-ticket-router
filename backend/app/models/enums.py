@@ -35,6 +35,7 @@ class AssignedTeam(str, enum.Enum):
     PRODUCT_SUPPORT = "Product Support"
     SECURITY_OPERATIONS = "Security Operations"
     GENERAL_SUPPORT = "General Support"
+    TRIAGE_QUEUE = "Triage Queue"
 
 
 class TicketStatus(str, enum.Enum):

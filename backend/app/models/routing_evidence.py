@@ -42,6 +42,7 @@ class RoutingEvidence(Base):
     category: Mapped[TicketCategory] = mapped_column(TicketCategoryType, nullable=False)
     priority: Mapped[TicketPriority] = mapped_column(TicketPriorityType, nullable=False)
     assigned_team: Mapped[AssignedTeam] = mapped_column(AssignedTeamType, nullable=False)
+    secondary_teams: Mapped[list[AssignedTeam]] = mapped_column(ARRAY(AssignedTeamType), nullable=False, default=list)
     reasoning: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     needs_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False)

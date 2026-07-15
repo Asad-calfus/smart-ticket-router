@@ -54,7 +54,9 @@ CATEGORY_TO_TEAM: dict[TicketCategory, AssignedTeam] = {
     TicketCategory.REFUND: AssignedTeam.REFUNDS_TEAM,
     TicketCategory.PRODUCT_QUERY: AssignedTeam.PRODUCT_SUPPORT,
     TicketCategory.SECURITY: AssignedTeam.SECURITY_OPERATIONS,
-    TicketCategory.NEEDS_CLARIFICATION: AssignedTeam.GENERAL_SUPPORT,
+    # Vague/unclassifiable tickets go to a dedicated triage queue, not General
+    # Support, so agents there aren't drowned out by "hi", bare numbers, etc.
+    TicketCategory.NEEDS_CLARIFICATION: AssignedTeam.TRIAGE_QUEUE,
     TicketCategory.OTHER: AssignedTeam.GENERAL_SUPPORT,
 }
 
@@ -93,6 +95,7 @@ FALLBACK_RESULT = RoutingResult(
     category=TicketCategory.OTHER,
     priority=TicketPriority.MEDIUM,
     assigned_team=AssignedTeam.GENERAL_SUPPORT,
+    secondary_teams=[],
     reasoning="Automatic routing was unavailable, so this ticket was sent to General Support for manual triage.",
     confidence=0.0,
     needs_human_review=True,
@@ -117,7 +120,12 @@ _BUSINESS_RULES_BLOCK = (
     "- An active critical incident affecting this customer's product/region can increase priority.\n"
     "- Angry or emotional tone alone must NOT increase priority — judge the underlying issue, not the tone.\n"
     '- If the message is too vague to classify (e.g. "broken", "help"), use category '
-    '"Needs Clarification" and ask concrete clarification questions instead of guessing.'
+    '"Needs Clarification" and ask concrete clarification questions instead of guessing.\n'
+    "- If the message clearly describes more than one distinct issue that would normally "
+    "belong to different teams (e.g. a billing dispute AND a security concern), pick the "
+    "most urgent/primary issue's team as assigned_team, and list the other affected team(s) "
+    "in secondary_teams so they can also be looped in. Do not invent secondary teams for a "
+    "single issue — only use this when multiple genuinely separate issues are present."
 )
 
 
@@ -226,6 +234,7 @@ STRICT OUTPUT INSTRUCTIONS
     "category": "<one of the allowed categories>",
     "priority": "<one of the allowed priorities>",
     "assigned_team": "<one of the allowed teams>",
+    "secondary_teams": [<0 or more OTHER allowed teams, only if the ticket genuinely spans multiple teams>],
     "reasoning": "<one concise sentence a support agent can read>",
     "confidence": <number between 0 and 1>,
     "needs_human_review": <true or false>,
@@ -271,37 +280,68 @@ _PRODUCT_QUERY_KEYWORDS = [
 _VAGUE_MESSAGES = {"broken", "help", "not working", "issue", "problem"}
 
 
-def _classify_mock(message: str) -> tuple[TicketCategory, float, str]:
+def _matched_categories(text: str) -> list[TicketCategory]:
+    """Every category whose keywords appear in the message, in priority order.
+    Used both to pick the primary category and to surface the others as
+    secondary_teams when a ticket genuinely spans more than one team's area."""
+    matches = []
+    if any(k in text for k in _SECURITY_KEYWORDS):
+        matches.append(TicketCategory.SECURITY)
+    if any(k in text for k in _REFUND_KEYWORDS):
+        matches.append(TicketCategory.REFUND)
+    if any(k in text for k in _BILLING_KEYWORDS):
+        matches.append(TicketCategory.BILLING)
+    if any(k in text for k in _ACCOUNT_ACCESS_KEYWORDS):
+        matches.append(TicketCategory.ACCOUNT_ACCESS)
+    if any(k in text for k in _TECHNICAL_KEYWORDS):
+        matches.append(TicketCategory.TECHNICAL_ISSUE)
+    if any(k in text for k in _PRODUCT_QUERY_KEYWORDS):
+        matches.append(TicketCategory.PRODUCT_QUERY)
+    return matches
+
+
+def _classify_mock(message: str) -> tuple[TicketCategory, float, str, list[AssignedTeam]]:
+    """Returns (category, confidence, reasoning, secondary_teams). `_matched_categories`
+    is already in priority order, so its first entry is always the primary category the
+    original single-category logic below would have picked; anything after it is a
+    genuinely distinct issue whose team is surfaced as a secondary team."""
     text = message.lower()
     word_count = len(message.split())
 
     if word_count <= VAGUE_MESSAGE_MAX_WORDS or text.strip(" .!?") in _VAGUE_MESSAGES:
-        return TicketCategory.NEEDS_CLARIFICATION, 0.35, "Message is too short or vague to classify confidently."
+        return TicketCategory.NEEDS_CLARIFICATION, 0.35, "Message is too short or vague to classify confidently.", []
 
-    if any(k in text for k in _SECURITY_KEYWORDS):
-        return TicketCategory.SECURITY, 0.85, "Message describes a potential unauthorized access or phishing attempt."
-    if any(k in text for k in _REFUND_KEYWORDS):
-        return TicketCategory.REFUND, 0.8, "Customer is explicitly requesting a refund."
+    matched = _matched_categories(text)
+    if not matched:
+        return TicketCategory.OTHER, 0.4, "Message does not clearly match a known support category.", []
 
-    mentions_billing = any(k in text for k in _BILLING_KEYWORDS)
-    mentions_access = any(k in text for k in _ACCOUNT_ACCESS_KEYWORDS)
-    if mentions_billing and mentions_access:
+    primary = matched[0]
+    primary_team = CATEGORY_TO_TEAM[primary]
+    secondary_teams = []
+    for category in matched[1:]:
+        team = CATEGORY_TO_TEAM[category]
+        if team != primary_team and team not in secondary_teams:
+            secondary_teams.append(team)
+
+    if primary == TicketCategory.SECURITY:
+        return TicketCategory.SECURITY, 0.85, "Message describes a potential unauthorized access or phishing attempt.", secondary_teams
+    if primary == TicketCategory.REFUND:
+        return TicketCategory.REFUND, 0.8, "Customer is explicitly requesting a refund.", secondary_teams
+    if primary == TicketCategory.BILLING and TicketCategory.ACCOUNT_ACCESS in matched:
         return (
             TicketCategory.BILLING,
             0.55,
             "Message mentions both a charge and a login/access problem; billing chosen as the primary "
             "signal, but this is ambiguous and worth a second look.",
+            secondary_teams,
         )
-    if mentions_billing:
-        return TicketCategory.BILLING, 0.78, "Message concerns a charge, invoice or subscription state."
-    if mentions_access:
-        return TicketCategory.ACCOUNT_ACCESS, 0.78, "Message concerns logging in or account access."
-    if any(k in text for k in _TECHNICAL_KEYWORDS):
-        return TicketCategory.TECHNICAL_ISSUE, 0.75, "Message describes a functional problem with the product."
-    if any(k in text for k in _PRODUCT_QUERY_KEYWORDS):
-        return TicketCategory.PRODUCT_QUERY, 0.7, "Message is a question about product capability, not a reported problem."
-
-    return TicketCategory.OTHER, 0.4, "Message does not clearly match a known support category."
+    if primary == TicketCategory.BILLING:
+        return TicketCategory.BILLING, 0.78, "Message concerns a charge, invoice or subscription state.", secondary_teams
+    if primary == TicketCategory.ACCOUNT_ACCESS:
+        return TicketCategory.ACCOUNT_ACCESS, 0.78, "Message concerns logging in or account access.", secondary_teams
+    if primary == TicketCategory.TECHNICAL_ISSUE:
+        return TicketCategory.TECHNICAL_ISSUE, 0.75, "Message describes a functional problem with the product.", secondary_teams
+    return TicketCategory.PRODUCT_QUERY, 0.7, "Message is a question about product capability, not a reported problem.", secondary_teams
 
 
 def _mock_priority(text: str, category: TicketCategory) -> tuple[TicketPriority, str]:
@@ -315,7 +355,7 @@ def _mock_priority(text: str, category: TicketCategory) -> tuple[TicketPriority,
 
 
 def _call_mock_llm(message: str) -> dict:
-    category, confidence, category_reason = _classify_mock(message)
+    category, confidence, category_reason, secondary_teams = _classify_mock(message)
     priority, priority_reason = _mock_priority(message.lower(), category)
     needs_review = category == TicketCategory.NEEDS_CLARIFICATION or confidence < CONFIDENCE_HUMAN_REVIEW_THRESHOLD
     clarification_questions = _default_clarification_questions() if category == TicketCategory.NEEDS_CLARIFICATION else []
@@ -323,6 +363,7 @@ def _call_mock_llm(message: str) -> dict:
         "category": category.value,
         "priority": priority.value,
         "assigned_team": CATEGORY_TO_TEAM[category].value,
+        "secondary_teams": [team.value for team in secondary_teams],
         "reasoning": f"{category_reason} {priority_reason}",
         "confidence": confidence,
         "needs_human_review": needs_review,
@@ -506,6 +547,7 @@ class _LLMOutput(BaseModel):
     category: TicketCategory
     priority: TicketPriority
     assigned_team: AssignedTeam
+    secondary_teams: list[AssignedTeam] = Field(default_factory=list)
     reasoning: str
     confidence: float = Field(ge=0.0, le=1.0)
     needs_human_review: bool
@@ -582,12 +624,21 @@ def apply_backend_safeguards(result: RoutingResult, message: str, context: Custo
 
     vague_or_unclassifiable = _is_vague(message) or result.category == TicketCategory.NEEDS_CLARIFICATION
     if vague_or_unclassifiable:
+        # Vague/unclassifiable tickets go to a dedicated triage queue rather than
+        # General Support, so real support requests there aren't drowned out by
+        # "hi", bare reference numbers, etc. They also never carry secondary teams.
         updates["category"] = TicketCategory.NEEDS_CLARIFICATION
-        updates["assigned_team"] = AssignedTeam.GENERAL_SUPPORT
+        updates["assigned_team"] = AssignedTeam.TRIAGE_QUEUE
+        updates["secondary_teams"] = []
         updates["needs_human_review"] = True
         updates["priority"] = TicketPriority.LOW
         if not result.clarification_questions:
             updates["clarification_questions"] = _default_clarification_questions()
+    else:
+        assigned_team = updates.get("assigned_team", result.assigned_team)
+        deduped_secondary = [team for team in result.secondary_teams if team != assigned_team]
+        if deduped_secondary != result.secondary_teams:
+            updates["secondary_teams"] = deduped_secondary
 
     category = updates.get("category", result.category)
     text = message.lower()
@@ -673,6 +724,7 @@ def route_ticket(
             category=llm_output.category,
             priority=llm_output.priority,
             assigned_team=llm_output.assigned_team,
+            secondary_teams=llm_output.secondary_teams,
             reasoning=llm_output.reasoning,
             confidence=llm_output.confidence,
             needs_human_review=llm_output.needs_human_review,
@@ -759,6 +811,7 @@ def route_ticket_request(
     ticket.category = result.category
     ticket.priority = result.priority
     ticket.assigned_team = result.assigned_team
+    ticket.secondary_teams = result.secondary_teams
     ticket.reasoning = result.reasoning
     ticket.confidence = result.confidence
     ticket.needs_human_review = result.needs_human_review
@@ -781,6 +834,7 @@ def route_ticket_request(
             category=result.category,
             priority=result.priority,
             assigned_team=result.assigned_team,
+            secondary_teams=result.secondary_teams,
             reasoning=result.reasoning,
             confidence=result.confidence,
             needs_human_review=result.needs_human_review,

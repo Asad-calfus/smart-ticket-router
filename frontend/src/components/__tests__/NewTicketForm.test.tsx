@@ -22,6 +22,7 @@ describe("NewTicketForm", () => {
       category: "Technical Issue",
       priority: "Medium",
       assigned_team: "Technical Support",
+      secondary_teams: [],
       reasoning: "test",
       confidence: 0.8,
       needs_human_review: false,

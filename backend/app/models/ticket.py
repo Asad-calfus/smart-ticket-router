@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Text, func
+from sqlalchemy import ARRAY, Boolean, DateTime, Float, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.config import settings
@@ -36,6 +36,9 @@ class Ticket(Base):
     category: Mapped[TicketCategory | None] = mapped_column(TicketCategoryType, nullable=True)
     priority: Mapped[TicketPriority | None] = mapped_column(TicketPriorityType, nullable=True)
     assigned_team: Mapped[AssignedTeam | None] = mapped_column(AssignedTeamType, nullable=True)
+    # Other teams whose area the ticket also touches (e.g. a billing complaint that
+    # also reports a security concern), in addition to the single primary assigned_team.
+    secondary_teams: Mapped[list[AssignedTeam]] = mapped_column(ARRAY(AssignedTeamType), nullable=False, default=list)
     reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     needs_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

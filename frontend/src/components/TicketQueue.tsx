@@ -54,6 +54,7 @@ export function TicketQueue({
         ticket.category ?? "",
         ticket.priority ?? "",
         ticket.assigned_team ?? "",
+        ...ticket.secondary_teams,
         ticket.status,
       ].some((value) => value.toLowerCase().includes(query)),
     )
@@ -147,6 +148,15 @@ export function TicketQueue({
                       {ticket.assigned_team}
                     </span>
                   )}
+                  {ticket.secondary_teams.map((team) => (
+                    <span
+                      key={team}
+                      title="Also affects this team"
+                      className="rounded border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground"
+                    >
+                      + {team}
+                    </span>
+                  ))}
                   {ticket.needs_human_review && (
                     <span className="rounded bg-review-bg px-2 py-0.5 text-xs font-medium text-review ring-1 ring-inset ring-review-border">
                       Needs Review

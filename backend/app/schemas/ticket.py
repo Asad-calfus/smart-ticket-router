@@ -19,6 +19,7 @@ class TicketListItem(BaseModel):
     category: TicketCategory | None
     priority: TicketPriority | None
     assigned_team: AssignedTeam | None
+    secondary_teams: list[AssignedTeam] = Field(default_factory=list)
     status: TicketStatus
     confidence: float | None
     needs_human_review: bool
@@ -39,6 +40,7 @@ class TicketRead(BaseModel):
     category: TicketCategory | None
     priority: TicketPriority | None
     assigned_team: AssignedTeam | None
+    secondary_teams: list[AssignedTeam] = Field(default_factory=list)
     reasoning: str | None
     confidence: float | None
     needs_human_review: bool
@@ -66,6 +68,9 @@ class RoutingResult(BaseModel):
     category: TicketCategory
     priority: TicketPriority
     assigned_team: AssignedTeam
+    # Other teams whose area this ticket also touches (e.g. billing + security in one
+    # message) — informational only; assigned_team remains the single owning queue.
+    secondary_teams: list[AssignedTeam] = Field(default_factory=list)
     reasoning: str
     confidence: float = Field(ge=0.0, le=1.0)
     needs_human_review: bool

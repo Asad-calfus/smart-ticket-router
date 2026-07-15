@@ -74,6 +74,11 @@ export function AIRecommendationCard({
             <div>
               <dt className="text-xs text-muted-foreground">Team</dt>
               <dd className="mt-0.5 text-sm font-medium text-foreground">{result.assigned_team}</dd>
+              {result.secondary_teams.length > 0 && (
+                <dd className="mt-0.5 text-xs text-muted-foreground">
+                  Also affects: {result.secondary_teams.join(", ")}
+                </dd>
+              )}
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Confidence</dt>

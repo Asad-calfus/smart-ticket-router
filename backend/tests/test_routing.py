@@ -84,7 +84,7 @@ def test_broken_message_returns_needs_clarification_with_questions(agent_client)
     body = response.json()
     assert body["category"] == "Needs Clarification"
     assert body["priority"] == "Low"
-    assert body["assigned_team"] == "General Support"
+    assert body["assigned_team"] == "Triage Queue"
     assert body["needs_human_review"] is True
     assert len(body["clarification_questions"]) >= 1
 
@@ -107,7 +107,7 @@ def test_numeric_only_message_is_always_low_priority_even_with_high_priority_cus
 
     assert safe_result.category == TicketCategory.NEEDS_CLARIFICATION
     assert safe_result.priority == TicketPriority.LOW
-    assert safe_result.assigned_team == AssignedTeam.GENERAL_SUPPORT
+    assert safe_result.assigned_team == AssignedTeam.TRIAGE_QUEUE
     assert safe_result.needs_human_review is True
 
 

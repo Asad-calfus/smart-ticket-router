@@ -9,7 +9,7 @@ LLMProviderName = Literal["mock", "anthropic", "openai", "groq"]
 DEFAULT_MODEL_BY_PROVIDER: dict[LLMProviderName, str] = {
     "mock": "",
     "anthropic": "claude-sonnet-5",
-    "openai": "gpt-5-mini",
+    "openai": "gpt-4o-mini",
     "groq": "openai/gpt-oss-120b",
 }
 
